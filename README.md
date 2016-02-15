@@ -61,7 +61,6 @@ Mean Spike Rate
 
 **This repository uses the following packages:**
 + `github.com/satori/go.uuid`
-+ `github.com/CHH/eventemitter`
 
 # Install #
 ```sh

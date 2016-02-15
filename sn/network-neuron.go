@@ -1,7 +1,6 @@
 package sn;
 
 import (
-  // "github.com/CHH/eventemitter";
   uuid "github.com/satori/go.uuid"
 );
 
@@ -28,16 +27,16 @@ func (this *NetworkNeuron) GetId() string {
   return this.id;
 };
 
-func (this *NetworkNeuron) CreateConnection(targetNeuron *NetworkNeuron, weight float64, once int) {
+func (this *NetworkNeuron) CreateConnection(targetNeuron *NetworkNeuron, weight float64, writeable bool, once int) {
   if this.connections == nil {
     this.connections = []*Connection{};
   }
-  newConnection := NewConnection(targetNeuron, weight);
+  newConnection := NewConnection(targetNeuron, weight, writeable);
   this.connections = append(this.connections, newConnection);
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, weight, 1);
+  targetNeuron.CreateConnection(this, weight, !writeable, 1);
 };
 
 func (this *NetworkNeuron) RemoveConnection(targetNeuron *NetworkNeuron, once int) {

@@ -144,7 +144,13 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   neuronA := networkNeuronGroup[0];
   neuronB := networkNeuronGroup[1];
 
-  // Create a connection from A to B.
-  neuronA.CreateConnection(neuronB, defaultWeight, 0);
-  
+  // Create a one way connection from A to B with a weight.
+  neuronA.CreateConnection(neuronB, defaultWeight, true, 0);
+
+  // Create a default simulation.
+  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
+
+  // Create a new network simulation of connections feeding from/to neurons.
+  networkSimulation := sn.NewNetworkSimulation(simulation, networkNeuronGroup);
+  networkSimulation.Simulate();
 };
