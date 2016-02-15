@@ -4,13 +4,12 @@ type Simulation struct {
   steps float64;
   tau float64;
   start float64;
-  measureStart float64;
   T float64;
   sketch map[float64]float64;
   timeSeries []float64;
 };
 
-func NewSimulation(steps, tau, start, T, measureStart float64) *Simulation {
+func NewSimulation(steps, tau, start, T float64) *Simulation {
   numberOfIterations := int(steps * (1 / tau));
   timeSeries := make([]float64, numberOfIterations);
   sketch := make(map[float64]float64);
@@ -18,7 +17,6 @@ func NewSimulation(steps, tau, start, T, measureStart float64) *Simulation {
     steps: steps,
     tau: tau,
     start: start,
-    measureStart: measureStart,
     T: T,
     timeSeries: timeSeries,
     sketch: sketch,
@@ -39,14 +37,6 @@ func (this *Simulation) SetSpikeRate(key, val float64) {
 
 func (this *Simulation) GetSpikeRate(key float64) float64 {
   return this.sketch[key];
-};
-
-func (this *Simulation) GetMeasureStart() float64 {
-  return this.measureStart;
-};
-
-func (this *Simulation) SetMeasureStart(measureStart float64) {
-  this.measureStart = measureStart;
 };
 
 func (this *Simulation) GetTimeSeries() []float64 {

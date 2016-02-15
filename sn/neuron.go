@@ -2,11 +2,12 @@ package sn;
 
 // Simulation constants.
 var defaultInputCase = float64(0);
-var defaultVCutoff = float64(30);
 var defaultV = float64(-64);
 var constantV1 = float64(0.04);
 var constantV2 = float64(5);
 var constantV3 = float64(140);
+
+type DecisionFunction func(float64, int, *SpikingNeuron) bool;
 
 type SpikingNeuron struct {
   a float64;
@@ -15,7 +16,7 @@ type SpikingNeuron struct {
   d float64;
   V float64;
   u float64;
-  spikeRate float64;
+  spikes int;
   previousState *SpikingNeuron;
 };
 
@@ -27,7 +28,7 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     d: d,
     V: defaultV,
     u: b * defaultV,
-    spikeRate: float64(0),
+    spikes: 0,
     previousState: &SpikingNeuron{
       a: a,
       b: b,
@@ -35,7 +36,7 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
       d: d,
       V: defaultV,
       u: b * defaultV,
-      spikeRate: float64(0),
+      spikes: 0,
       previousState: nil,
     },
   };
@@ -47,26 +48,56 @@ func (this *SpikingNeuron) Reset() {
   this.previousState = currentState;
 };
 
-func (this *SpikingNeuron) SetSpikeRate(mean float64) {
-  this.spikeRate = mean;
+func (this *SpikingNeuron) SetV(V float64) {
+  this.V = V;
 };
 
-func (this *SpikingNeuron) GetSpikeRate() float64 {
-  return this.spikeRate;
+func (this *SpikingNeuron) GetV() float64 {
+  return this.V;
 };
 
-func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) []float64 {
-  spikes := 0;
+func (this *SpikingNeuron) SetU(u float64) {
+  this.u = u;
+};
+
+func (this *SpikingNeuron) GetU() float64 {
+  return this.u;
+};
+
+func (this *SpikingNeuron) GetA() float64 {
+  return this.a;
+};
+
+func (this *SpikingNeuron) GetB() float64 {
+  return this.b;
+};
+
+func (this *SpikingNeuron) GetC() float64 {
+  return this.c;
+};
+
+func (this *SpikingNeuron) GetD() float64 {
+  return this.d;
+};
+
+func (this *SpikingNeuron) SetSpikes(spikes int) {
+  this.spikes = spikes;
+};
+
+func (this *SpikingNeuron) GetSpikes() int {
+  return this.spikes;
+};
+
+func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation, predicate, success, fail DecisionFunction) {
   I := float64(0);
 
   steps := simulation.GetSteps();
   tau := simulation.GetTau();
   timeSeries := simulation.GetTimeSeries();
   start := simulation.GetStart();
-  measureStart := simulation.GetMeasureStart();
   T1 := simulation.GetT();
 
-  VV, uu := make([]float64, len(timeSeries)), make([]float64, len(timeSeries));
+  uu := make([]float64, len(timeSeries));
 
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
     timeSeries[i] = t;
@@ -80,19 +111,14 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) []flo
     this.V = this.V + tau * (constantV1 * (this.V * this.V) + constantV2 * this.V + constantV3 - this.u + I);
     this.u = this.u + tau * this.a * (this.b * this.V - this.u);
 
-    if (this.V > defaultVCutoff) {
-      VV[i] = defaultVCutoff;
-      this.V = this.c;
-      this.u = this.u + this.d;
-      if t > measureStart {
-        spikes++;
-      }
+    if predicate(t, i, this) {
+      success(t, i, this);
     } else {
-      VV[i] = this.V;
+      fail(t, i, this);
     }
+
     uu[i] = this.u;
   }
-  this.SetSpikeRate(float64(spikes) / measureStart);
+
   simulation.SetTimeSeries(timeSeries);
-  return VV;
 };

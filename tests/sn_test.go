@@ -28,6 +28,12 @@ var startInput = float64(1.0);
 var maxInput = float64(20);
 var inputIncrement = float64(0.25);
 var inputMeasurements = []float64{1, 5, 10, 15, 20};
+var defaultVCutoff = float64(30);
+
+// Network parameters
+var defaultWeight = float64(100.0);
+var defaultOutputMembranePotential = float64(1.0);
+var numberOfSpikingNeurons = 2;
 
 func GeneratePlot(x, y []float64, title, xLabel, yLabel, legendLabel, fileName string) {
   outPlotPoints := make(plotter.XYs, len(x));
@@ -66,12 +72,35 @@ func IndexOf(list []float64, targetValue float64) int {
   return -1;
 };
 
-func TestSpikingNeuronSimulation(t *testing.T) {
-  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise, defaultMeasureStart);
+func TestSingleSpikingNeuronSimulation(t *testing.T) {
+  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
   spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
 
+  output := make([]float64, len(simulation.GetTimeSeries()));
+
   for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
-    VV := spikingNeuron.Simulate(input, simulation);
+
+    // Conditions for firing the neuron.
+    predicate := func (t float64, i int, this *sn.SpikingNeuron) bool {
+      return this.GetV() > defaultVCutoff;
+    };
+
+    success := func (t float64, i int, this *sn.SpikingNeuron) bool {
+      output[i] = defaultVCutoff;
+      this.SetV(this.GetC());
+      this.SetU(this.GetU() + this.GetD());
+      if t > defaultMeasureStart {
+        this.SetSpikes(this.GetSpikes() + 1);
+      }
+      return true;
+    };
+
+    fail := func (t float64, i int, this *sn.SpikingNeuron) bool {
+      output[i] = this.GetV();
+      return true;
+    };
+
+    spikingNeuron.Simulate(input, simulation, predicate, success, fail);
 
     if IndexOf(inputMeasurements, input) > -1 {
       inputString := strconv.FormatFloat(input, 'f', 6, 64);
@@ -79,11 +108,11 @@ func TestSpikingNeuronSimulation(t *testing.T) {
       xLabel := "Time Series";
       yLabel := "Membrane Potential";
       legendLabel := "Membrane Potential over Time";
-      fileName := "spiking-neuron-" + inputString + ".png";
-      GeneratePlot(simulation.GetTimeSeries(), VV, title, xLabel, yLabel, legendLabel, fileName);
+      fileName := "plots/spiking-neuron-" + inputString + ".png";
+      GeneratePlot(simulation.GetTimeSeries(), output, title, xLabel, yLabel, legendLabel, fileName);
     }
 
-    simulation.SetSpikeRate(input, spikingNeuron.GetSpikeRate());
+    simulation.SetSpikeRate(input, float64(spikingNeuron.GetSpikes()) / defaultMeasureStart);
     spikingNeuron.Reset();
   }
 
@@ -98,6 +127,24 @@ func TestSpikingNeuronSimulation(t *testing.T) {
   xLabel := "Input";
   yLabel := "Spike Rate";
   legendLabel := "Spike Rate as a Function of Input";
-  fileName := "spiking-neuron-mean-spike-rate.png";
+  fileName := "plots/spiking-neuron-mean-spike-rate.png";
   GeneratePlot(inputMeasurements, means, title, xLabel, yLabel, legendLabel, fileName);
+};
+
+// Neuron A and B example.
+func TestSpikingNeuronNetwork(t *testing.T) {
+  // Create a group of neurons with the default parameters.
+  networkNeuronGroup := make([]*sn.NetworkNeuron, numberOfSpikingNeurons);
+
+  for i := 0; i < numberOfSpikingNeurons; i++ {
+    spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
+    networkNeuronGroup[i] = sn.NewNetworkNeuron(spikingNeuron);
+  }
+
+  neuronA := networkNeuronGroup[0];
+  neuronB := networkNeuronGroup[1];
+
+  // Create a connection from A to B.
+  neuronA.CreateConnection(neuronB, defaultWeight, 0);
+  
 };
