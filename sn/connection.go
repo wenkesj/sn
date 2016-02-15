@@ -1,20 +1,26 @@
 package sn;
 
 type Connection struct {
+  value float64;
   weight float64;
-  target *NetworkNeuron;
+  target *SpikingNeuron;
   writeable bool;
 };
 
-func NewConnection(target *NetworkNeuron, weight float64, writeable bool) *Connection {
+func NewConnection(target *SpikingNeuron, weight float64, writeable bool) *Connection {
   return &Connection{
+    value: 0,
     weight: weight,
     target: target,
     writeable: writeable,
   };
 };
 
-func (this *Connection) GetTarget() *NetworkNeuron {
+func (this *Connection) Write() {
+
+};
+
+func (this *Connection) GetTarget() *SpikingNeuron {
   return this.target;
 };
 

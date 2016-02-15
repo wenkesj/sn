@@ -1,5 +1,9 @@
 package sn;
 
+import (
+  uuid "github.com/satori/go.uuid";
+);
+
 // Simulation constants.
 var defaultInputCase = float64(0);
 var defaultV = float64(-64);
@@ -16,11 +20,17 @@ type SpikingNeuron struct {
   d float64;
   V float64;
   u float64;
+  id string;
+  predicate DecisionFunction;
+  success DecisionFunction;
+  fail DecisionFunction;
   spikes int;
-  previousState *SpikingNeuron;
+  input float64;
+  connections []*Connection;
 };
 
 func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
+  id := uuid.NewV4().String();
   return &SpikingNeuron{
     a: a,
     b: b,
@@ -28,24 +38,14 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     d: d,
     V: defaultV,
     u: b * defaultV,
+    input: 0,
     spikes: 0,
-    previousState: &SpikingNeuron{
-      a: a,
-      b: b,
-      c: c,
-      d: d,
-      V: defaultV,
-      u: b * defaultV,
-      spikes: 0,
-      previousState: nil,
-    },
+    predicate: nil,
+    success: nil,
+    fail: nil,
+    id: id,
+    connections: nil,
   };
-};
-
-func (this *SpikingNeuron) Reset() {
-  currentState := this;
-  this = this.previousState;
-  this.previousState = currentState;
 };
 
 func (this *SpikingNeuron) SetV(V float64) {
@@ -88,8 +88,77 @@ func (this *SpikingNeuron) GetSpikes() int {
   return this.spikes;
 };
 
-func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation, predicate, success, fail DecisionFunction) {
+func (this *SpikingNeuron) GetInput() float64 {
+  return this.input;
+};
+
+func (this *SpikingNeuron) SetInput(input float64) {
+  this.input = input;
+};
+
+func (this *SpikingNeuron) GetPredicate() DecisionFunction {
+  return this.predicate;
+};
+
+func (this *SpikingNeuron) SetPredicate(predicate DecisionFunction) {
+  this.predicate = predicate;
+};
+
+func (this *SpikingNeuron) GetSuccess() DecisionFunction {
+  return this.success;
+};
+
+func (this *SpikingNeuron) SetSuccess(success DecisionFunction) {
+  this.success = success;
+};
+
+func (this *SpikingNeuron) GetFail() DecisionFunction {
+  return this.fail;
+};
+
+func (this *SpikingNeuron) SetFail(fail DecisionFunction) {
+  this.fail = fail;
+};
+
+func (this *SpikingNeuron) GetConnections() []*Connection {
+  return this.connections;
+};
+
+func (this *SpikingNeuron) GetId() string {
+  return this.id;
+};
+
+func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int) {
+  if this.connections == nil {
+    this.connections = []*Connection{};
+  }
+  newConnection := NewConnection(targetNeuron, weight, writeable);
+  this.connections = append(this.connections, newConnection);
+  if once == 1 {
+    return;
+  }
+  targetNeuron.CreateConnection(this, weight, !writeable, 1);
+};
+
+func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {
+  if this.connections == nil {
+    return;
+  }
+  for index, connection := range this.connections {
+    if connection.GetTarget().GetId() == targetNeuron.GetId() {
+      this.connections = append(this.connections[:index], this.connections[index+1:]...);
+      if once == 1 {
+        return;
+      }
+      targetNeuron.RemoveConnection(this, 1);
+      break;
+    }
+  }
+};
+
+func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
   I := float64(0);
+  this.SetInput(input);
 
   steps := simulation.GetSteps();
   tau := simulation.GetTau();
@@ -103,21 +172,23 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation, predi
     timeSeries[i] = t;
 
     if t > T1 {
-      I = input;
+      I = this.GetInput();
     } else {
       I = defaultInputCase;
     }
 
-    this.V = this.V + tau * (constantV1 * (this.V * this.V) + constantV2 * this.V + constantV3 - this.u + I);
-    this.u = this.u + tau * this.a * (this.b * this.V - this.u);
+    this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
+    this.SetU(this.GetU() + tau * this.GetA() * (this.GetB() * this.GetV() - this.GetU()));
 
-    if predicate(t, i, this) {
-      success(t, i, this);
+    if this.GetPredicate()(t, i, this) {
+      // Fire...
+      this.GetSuccess()(t, i, this);
     } else {
-      fail(t, i, this);
+      // Don't Fire...
+      this.GetFail()(t, i, this);
     }
 
-    uu[i] = this.u;
+    uu[i] = this.GetU();
   }
 
   simulation.SetTimeSeries(timeSeries);

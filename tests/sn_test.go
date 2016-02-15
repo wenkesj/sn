@@ -74,18 +74,17 @@ func IndexOf(list []float64, targetValue float64) int {
 
 func TestSingleSpikingNeuronSimulation(t *testing.T) {
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
-  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
-
   output := make([]float64, len(simulation.GetTimeSeries()));
 
   for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
+    spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
 
     // Conditions for firing the neuron.
-    predicate := func (t float64, i int, this *sn.SpikingNeuron) bool {
+    spikingNeuron.SetPredicate(func (t float64, i int, this *sn.SpikingNeuron) bool {
       return this.GetV() > defaultVCutoff;
-    };
+    });
 
-    success := func (t float64, i int, this *sn.SpikingNeuron) bool {
+    spikingNeuron.SetSuccess(func (t float64, i int, this *sn.SpikingNeuron) bool {
       output[i] = defaultVCutoff;
       this.SetV(this.GetC());
       this.SetU(this.GetU() + this.GetD());
@@ -93,14 +92,14 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
         this.SetSpikes(this.GetSpikes() + 1);
       }
       return true;
-    };
+    });
 
-    fail := func (t float64, i int, this *sn.SpikingNeuron) bool {
+    spikingNeuron.SetFail(func (t float64, i int, this *sn.SpikingNeuron) bool {
       output[i] = this.GetV();
       return true;
-    };
+    });
 
-    spikingNeuron.Simulate(input, simulation, predicate, success, fail);
+    spikingNeuron.Simulate(input, simulation);
 
     if IndexOf(inputMeasurements, input) > -1 {
       inputString := strconv.FormatFloat(input, 'f', 6, 64);
@@ -113,7 +112,6 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
     }
 
     simulation.SetSpikeRate(input, float64(spikingNeuron.GetSpikes()) / defaultMeasureStart);
-    spikingNeuron.Reset();
   }
 
   meanSketch := simulation.GetSketch();
@@ -134,15 +132,14 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
 // Neuron A and B example.
 func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a group of neurons with the default parameters.
-  networkNeuronGroup := make([]*sn.NetworkNeuron, numberOfSpikingNeurons);
+  network := make([]*sn.SpikingNeuron, numberOfSpikingNeurons);
 
   for i := 0; i < numberOfSpikingNeurons; i++ {
-    spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
-    networkNeuronGroup[i] = sn.NewNetworkNeuron(spikingNeuron);
+    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
   }
 
-  neuronA := networkNeuronGroup[0];
-  neuronB := networkNeuronGroup[1];
+  neuronA := network[0];
+  neuronB := network[1];
 
   // Create a one way connection from A to B with a weight.
   neuronA.CreateConnection(neuronB, defaultWeight, true, 0);
@@ -151,6 +148,7 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
   // Create a new network simulation of connections feeding from/to neurons.
-  networkSimulation := sn.NewNetworkSimulation(simulation, networkNeuronGroup);
-  networkSimulation.Simulate();
+  testNetwork := sn.NewNetwork(network);
+
+  testNetwork.Simulate(startInput, simulation);
 };

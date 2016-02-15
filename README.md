@@ -32,26 +32,32 @@ The model generates the full shape of a action potential. As seen in the [Plots]
 # Plots #
 #### [Figure 1](#figure-1) ####
 Spiking Neuron at I = 1.0
+
 ![Spiking Neuron at I = 1.0](/tests/plots/spiking-neuron-1.000000.png)
 
 #### [Figure 2](#figure-2) ####
 Spiking Neuron at I = 5.0
+
 ![Spiking Neuron at I = 5.0](/tests/plots/spiking-neuron-5.000000.png)
 
 #### [Figure 3](#figure-3) ####
 Spiking Neuron at I = 10.0
+
 ![Spiking Neuron at I = 10.0](/tests/plots/spiking-neuron-10.000000.png)
 
 #### [Figure 4](#figure-4) ####
 Spiking Neuron at I = 15.0
+
 ![Spiking Neuron at I = 15.0](/tests/plots/spiking-neuron-15.000000.png)
 
 #### [Figure 5](#figure-5) ####
 Spiking Neuron at I = 20.0
+
 ![Spiking Neuron at I = 20.0](/tests/plots/spiking-neuron-20.000000.png)
 
 #### [Figure 6](#figure-6) ####
 Mean Spike Rate
+
 ![Mean Spike Rate](/tests/plots/spiking-neuron-mean-spike-rate.png)
 
 # Conclusion #
