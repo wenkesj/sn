@@ -183,6 +183,10 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
     if this.GetPredicate()(t, i, this) {
       // Fire...
       this.GetSuccess()(t, i, this);
+
+      // Default results.
+      this.SetV(this.GetC());
+      this.SetU(this.GetU() + this.GetD());
     } else {
       // Don't Fire...
       this.GetFail()(t, i, this);

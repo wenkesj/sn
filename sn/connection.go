@@ -1,7 +1,6 @@
 package sn;
 
 type Connection struct {
-  value float64;
   weight float64;
   target *SpikingNeuron;
   writeable bool;
@@ -9,15 +8,10 @@ type Connection struct {
 
 func NewConnection(target *SpikingNeuron, weight float64, writeable bool) *Connection {
   return &Connection{
-    value: 0,
     weight: weight,
     target: target,
     writeable: writeable,
   };
-};
-
-func (this *Connection) Write() {
-
 };
 
 func (this *Connection) GetTarget() *SpikingNeuron {
