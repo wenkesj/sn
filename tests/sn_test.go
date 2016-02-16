@@ -24,6 +24,7 @@ var defaultC = float64(-65);
 var defaultD = float64(6);
 
 // Test parameters
+var defaultInputCase = float64(0);
 var startInput = float64(1.0);
 var maxInput = float64(20);
 var inputIncrement = float64(0.25);
@@ -80,6 +81,19 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
     spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
 
+    // Conditions for recieveing input.
+    spikingNeuron.SetInputPredicate(func (t, T1 float64, this *sn.SpikingNeuron) bool {
+      return t > T1;
+    });
+
+    spikingNeuron.SetInputSuccess(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+      return this.GetInput();
+    });
+
+    spikingNeuron.SetInputFail(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+      return defaultInputCase;
+    });
+
     // Conditions for firing the neuron.
     spikingNeuron.SetPredicate(func (t float64, i int, this *sn.SpikingNeuron) bool {
       return this.GetV() > defaultVCutoff;
@@ -99,7 +113,8 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
       return true;
     });
 
-    spikingNeuron.Simulate(input, simulation);
+    spikingNeuron.SetInput(input);
+    spikingNeuron.Simulate(simulation, nil, nil);
 
     if IndexOf(inputMeasurements, input) > -1 {
       inputString := strconv.FormatFloat(input, 'f', 6, 64);
@@ -139,36 +154,6 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     // Define the neuron.
     network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
 
-    // Assign predicates.
-    network[i].SetPredicate(func (timeIndex float64, currentIndex int, this *sn.SpikingNeuron) bool {
-      return this.GetV() > defaultVCutoff;
-    });
-
-    network[i].SetSuccess(func (timeIndex float64, currentIndex int, this *sn.SpikingNeuron) bool {
-      // Send the output to the connected neuron.
-      for _, connection := range this.GetConnections() {
-        if connection.IsWriteable() {
-          connection.GetTarget().SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess);
-        }
-      }
-
-      // For calculating mean spike rate.
-      if timeIndex > defaultMeasureStart {
-        this.SetSpikes(this.GetSpikes() + 1);
-      }
-      return true;
-    });
-
-    network[i].SetFail(func (timeIndex float64, currentIndex int, this *sn.SpikingNeuron) bool {
-      // Send the output to the connected neurons.
-      for _, connection := range this.GetConnections() {
-        if connection.IsWriteable() {
-          connection.GetTarget().SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail);
-        }
-      }
-      return true;
-    });
-
     if i > 0 {
       // Create a connection from one neuron to the next.
       network[i - 1].CreateConnection(network[i], defaultWeight, true, 0);
@@ -178,10 +163,10 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
+  // Feed the first input to the externally connected neuron.
+  network[0].SetInput(10.0);
+
   // Create a new network simulation of connections feeding from/to neurons.
   testNetwork := sn.NewNetwork(network);
-
-  testNetwork.Simulate(startInput, simulation);
-
-  t.Log(network[0].GetSpikes());
+  testNetwork.Simulate(simulation);
 };

@@ -1,17 +1,19 @@
 package sn;
 
 import (
+  "sync";
   uuid "github.com/satori/go.uuid";
 );
 
 // Simulation constants.
-var defaultInputCase = float64(0);
 var defaultV = float64(-64);
 var constantV1 = float64(0.04);
 var constantV2 = float64(5);
 var constantV3 = float64(140);
 
 type DecisionFunction func(float64, int, *SpikingNeuron) bool;
+type FloatDecisionFunction func(float64, float64, *SpikingNeuron) bool;
+type ReturnFloatFunction func(float64, float64, *SpikingNeuron) float64;
 
 type SpikingNeuron struct {
   a float64;
@@ -21,6 +23,9 @@ type SpikingNeuron struct {
   V float64;
   u float64;
   id string;
+  inputPredicate FloatDecisionFunction;
+  inputSuccess ReturnFloatFunction;
+  inputFail ReturnFloatFunction;
   predicate DecisionFunction;
   success DecisionFunction;
   fail DecisionFunction;
@@ -43,6 +48,9 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     predicate: nil,
     success: nil,
     fail: nil,
+    inputPredicate: nil,
+    inputSuccess: nil,
+    inputFail: nil,
     id: id,
     connections: nil,
   };
@@ -128,6 +136,30 @@ func (this *SpikingNeuron) GetId() string {
   return this.id;
 };
 
+func (this *SpikingNeuron) GetInputPredicate() FloatDecisionFunction {
+  return this.inputPredicate;
+};
+
+func (this *SpikingNeuron) GetInputSuccess() ReturnFloatFunction {
+  return this.inputSuccess;
+};
+
+func (this *SpikingNeuron) GetInputFail() ReturnFloatFunction {
+  return this.inputFail;
+};
+
+func (this *SpikingNeuron) SetInputPredicate(inputFunction FloatDecisionFunction) {
+  this.inputPredicate = inputFunction;
+};
+
+func (this *SpikingNeuron) SetInputSuccess(inputFunction ReturnFloatFunction) {
+  this.inputSuccess = inputFunction;
+};
+
+func (this *SpikingNeuron) SetInputFail(inputFunction ReturnFloatFunction) {
+  this.inputFail = inputFunction;
+};
+
 func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int) {
   if this.connections == nil {
     this.connections = []*Connection{};
@@ -156,9 +188,8 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
   }
 };
 
-func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
+func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan struct{}, waitGroup *sync.WaitGroup) {
   I := float64(0);
-  this.SetInput(input);
 
   steps := simulation.GetSteps();
   tau := simulation.GetTau();
@@ -169,12 +200,16 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
   uu := make([]float64, len(timeSeries));
 
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
+    if startSimulation != nil && waitGroup != nil {
+      <- startSimulation;
+    }
+
     timeSeries[i] = t;
 
-    if t > T1 {
-      I = this.GetInput();
+    if this.GetInputPredicate()(t, T1, this) {
+      I = this.GetInputSuccess()(t, T1, this);
     } else {
-      I = defaultInputCase;
+      I = this.GetInputFail()(t, T1, this);
     }
 
     this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
@@ -183,7 +218,6 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
     if this.GetPredicate()(t, i, this) {
       // Fire...
       this.GetSuccess()(t, i, this);
-
       // Default results.
       this.SetV(this.GetC());
       this.SetU(this.GetU() + this.GetD());
@@ -196,4 +230,8 @@ func (this *SpikingNeuron) Simulate(input float64, simulation *Simulation) {
   }
 
   simulation.SetTimeSeries(timeSeries);
+
+  if waitGroup != nil {
+    waitGroup.Done();
+  }
 };
