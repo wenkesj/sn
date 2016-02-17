@@ -59,7 +59,6 @@ func (this *AtomicNeuron) Unlock() {
 func (this *AtomicNeuron) Wait() {
   // First one gets here and increments a counter.
   // This says the neuron has updated its value and has set the input of another neuron.
-  time.Sleep(time.Millisecond);
   this.IncrementSignal();
 
   // Next, this neuron lets the next neuron go through.
@@ -76,7 +75,6 @@ func (this *AtomicNeuron) Wait() {
     } else {
       // The first neuron should go through, reset the atomic counter and grab the lock before anyone else.
       // Reset the counter.
-      fmt.Println("Released lock");
       atomic.StoreUint64(this.atomicSignalCondition, uint64(0));
       break;
     }
@@ -118,15 +116,32 @@ func (this *Network) Simulate(simulation *Simulation) {
     }
 
     // Conditions for recieveing input.
-    neuron.SetInputPredicate(func (t, T1 float64, this *SpikingNeuron) bool {
+    neuron.SetInputPredicate(func (i int, t, T1 float64, this *SpikingNeuron) bool {
       return t > T1;
     });
 
-    neuron.SetInputSuccess(func (t, T1 float64, this *SpikingNeuron) float64 {
+    neuron.SetInputSuccess(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
+      // Wait for each connection that is not a writeable connection.
+      inputSum := 0;
+      for _, connection := range this.GetConnections() {
+        if !connection.IsWriteable() {
+          // Wait for the connection to be ready for the neuron to recieve input.
+          for !connection.IsReady() {
+            // ...
+          }
+          // Sum the connections to the neuron.
+          inputSum += connection.GetOutput(i);
+          connection.SetReady(false);
+        }
+      }
+
+      // Ready the next neuron.
+      this.SetInput(inputSum);
       return this.GetInput();
     });
 
-    neuron.SetInputFail(func (t, T1 float64, this *SpikingNeuron) float64 {
+    neuron.SetInputFail(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
+      this.SetInput(defaultInputCase);
       return defaultInputCase;
     });
 
@@ -141,9 +156,8 @@ func (this *Network) Simulate(simulation *Simulation) {
       // Send the output to the connected neuron.
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
-          target := connection.GetTarget();
-          // Reduce the product of connection weight and output.
-          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess);
+          connection.SetOutput(defaultOutputMembranePotentialSuccess);
+          connection.SetReady(true);
         }
       }
 
@@ -158,11 +172,11 @@ func (this *Network) Simulate(simulation *Simulation) {
       // Send the output to the connected neurons.
       this.SetOutput(currentIndex, this.GetV());
 
+      // Send the output to the connected neuron.
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
-          target := connection.GetTarget();
-          // Once the first neuron reaches this lock, send it's response to the next neuron.
-          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail);
+          connection.SetOutput(defaultOutputMembranePotentialFail);
+          connection.SetReady(true);
         }
       }
       return true;
@@ -177,6 +191,14 @@ func (this *Network) Simulate(simulation *Simulation) {
   var atomicSignalCondition uint64 = 0;
   atomicNeuron := NewAtomicNeuron(startSimulation, &simulationWaitGroup, conditionalSignal, &atomicSignalCondition, len(this.neurons));
 
+  // The first neuron starts the simulation ahead of all the others.
+  // It grabs the lock, blocking all other neurons.
+  // It then calculates its input based on the external connection inputting that are ready.
+  // It then increments an atomic counter.
+  // It then calculates its output and sets the output connections values and sets them to be read.
+  // The neuron then unlocks the next neuron to go through and waits for it to finish.
+  // After all the neurons finish, the first neuron goes again first.
+  // This then repeats over the time series...
   for _, neuron := range this.neurons {
     atomicNeuron.AddWaitGroup(1);
     go neuron.Simulate(simulation, atomicNeuron);

@@ -1,25 +1,51 @@
 package sn;
 
 type Connection struct {
+  output float64;
   weight float64;
-  target *SpikingNeuron;
+  to *SpikingNeuron;
+  from *SpikingNeuron;
   writeable bool;
+  ready bool;
 };
 
-func NewConnection(target *SpikingNeuron, weight float64, writeable bool) *Connection {
+func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool) *Connection {
   return &Connection{
+    output: 0,
     weight: weight,
-    target: target,
+    to: to,
+    from: from,
     writeable: writeable,
+    ready: false,
   };
 };
 
-func (this *Connection) GetTarget() *SpikingNeuron {
-  return this.target;
+func (this *Connection) GetOutput() float64 {
+  return this.output;
+};
+
+func (this *Connection) SetOutput(output float64) {
+  this.output = output * this.GetWeight();
+};
+
+func (this *Connection) GetTo() *SpikingNeuron {
+  return this.to;
+};
+
+func (this *Connection) GetFrom() *SpikingNeuron {
+  return this.from;
 };
 
 func (this *Connection) GetWeight() float64 {
   return this.weight;
+};
+
+func (this *Connection) IsReady() bool {
+  return ready;
+};
+
+func (this *Connection) SetReady(ready bool) {
+  this.ready = ready;
 };
 
 func (this *Connection) IsWriteable() bool {

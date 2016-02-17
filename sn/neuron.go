@@ -2,7 +2,6 @@ package sn;
 
 import (
   "fmt";
-  "time";
   uuid "github.com/satori/go.uuid";
 );
 
@@ -13,8 +12,8 @@ var constantV2 = float64(5);
 var constantV3 = float64(140);
 
 type DecisionFunction func(float64, int, *SpikingNeuron) bool;
-type FloatDecisionFunction func(float64, float64, *SpikingNeuron) bool;
-type ReturnFloatFunction func(float64, float64, *SpikingNeuron) float64;
+type FloatDecisionFunction func(int, float64, float64, *SpikingNeuron) bool;
+type ReturnFloatFunction func(int, float64, float64, *SpikingNeuron) float64;
 
 type SpikingNeuron struct {
   a float64;
@@ -37,8 +36,7 @@ type SpikingNeuron struct {
   connections []*Connection;
 };
 
-func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
-  id := uuid.NewV4().String();
+func NewSpikingNeuron(a, b, c, d float64, id int64) *SpikingNeuron {
   spikeRateMap := make(map[float64]float64);
   return &SpikingNeuron{
     a: a,
@@ -118,6 +116,10 @@ func (this *SpikingNeuron) GetOutputs() []float64 {
   return this.outputs;
 };
 
+func (this *SpikingNeuron) GetOutput(i int) float64 {
+  return this.outputs[i];
+};
+
 func (this *SpikingNeuron) SetSpikeRate(key, val float64) {
   this.spikeRateMap[key] = val;
 };
@@ -170,7 +172,7 @@ func (this *SpikingNeuron) GetConnections() []*Connection {
   return this.connections;
 };
 
-func (this *SpikingNeuron) GetId() string {
+func (this *SpikingNeuron) GetId() int64 {
   return this.id;
 };
 
@@ -202,12 +204,12 @@ func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight 
   if this.connections == nil {
     this.connections = []*Connection{};
   }
-  newConnection := NewConnection(targetNeuron, weight, writeable);
+  newConnection := NewConnection(targetNeuron, this, weight, writeable);
   this.connections = append(this.connections, newConnection);
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, weight, !writeable, 1);
+  targetNeuron.CreateConnection(this, targetNeuron, weight, !writeable, 1);
 };
 
 func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {
@@ -215,7 +217,7 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
     return;
   }
   for index, connection := range this.connections {
-    if connection.GetTarget().GetId() == targetNeuron.GetId() {
+    if connection.GetTo().GetId() == targetNeuron.GetId() {
       this.connections = append(this.connections[:index], this.connections[index+1:]...);
       if once == 1 {
         return;
@@ -242,19 +244,16 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
     timeSeries[i] = t;
 
-    // First neuron lock's here
-    // Second neuron goes in after it unlocks and locks it.
-    // Third neuron ...
+    // Lock...
     if atomicNeuron != nil {
-      time.Sleep(time.Millisecond);
-      fmt.Println("Got lock " + this.GetId());
       atomicNeuron.Lock();
     }
 
-    if this.GetInputPredicate()(t, T1, this) {
-      I = this.GetInputSuccess()(t, T1, this);
+    // Get all the outputs from each connection.
+    if this.GetInputPredicate()(i, t, T1, this) {
+      I = this.GetInputSuccess()(i, t, T1, this);
     } else {
-      I = this.GetInputFail()(t, T1, this);
+      I = this.GetInputFail()(i, t, T1, this);
     }
 
     this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
@@ -272,6 +271,7 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
     uu[i] = this.GetU();
 
+    // Wait for all other Neurons to finish their computation.
     if atomicNeuron != nil {
       atomicNeuron.Wait();
     }
@@ -281,6 +281,6 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
   if atomicNeuron != nil {
     atomicNeuron.DoneWaitGroup();
-    fmt.Println("Finished " + this.GetId());
+    fmt.Println("Finished", this.GetId());
   }
 };
