@@ -41,7 +41,7 @@ func (this *Connection) GetWeight() float64 {
 };
 
 func (this *Connection) IsReady() bool {
-  return ready;
+  return this.ready;
 };
 
 func (this *Connection) SetReady(ready bool) {

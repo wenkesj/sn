@@ -2,7 +2,6 @@ package sn;
 
 import (
   "fmt";
-  uuid "github.com/satori/go.uuid";
 );
 
 // Simulation constants.
@@ -22,7 +21,7 @@ type SpikingNeuron struct {
   d float64;
   V float64;
   u float64;
-  id string;
+  id int64;
   inputPredicate FloatDecisionFunction;
   inputSuccess ReturnFloatFunction;
   inputFail ReturnFloatFunction;
@@ -209,7 +208,7 @@ func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight 
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, targetNeuron, weight, !writeable, 1);
+  targetNeuron.CreateConnection(this, weight, !writeable, 1);
 };
 
 func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {

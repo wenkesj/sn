@@ -122,7 +122,7 @@ func (this *Network) Simulate(simulation *Simulation) {
 
     neuron.SetInputSuccess(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
       // Wait for each connection that is not a writeable connection.
-      inputSum := 0;
+      inputSum := float64(0);
       for _, connection := range this.GetConnections() {
         if !connection.IsWriteable() {
           // Wait for the connection to be ready for the neuron to recieve input.
@@ -130,7 +130,7 @@ func (this *Network) Simulate(simulation *Simulation) {
             // ...
           }
           // Sum the connections to the neuron.
-          inputSum += connection.GetOutput(i);
+          inputSum += connection.GetOutput();
           connection.SetReady(false);
         }
       }
