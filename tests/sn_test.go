@@ -30,6 +30,7 @@ var maxInput = float64(20);
 var inputIncrement = float64(0.25);
 var inputMeasurements = []float64{1, 5, 10, 15, 20};
 var defaultVCutoff = float64(30);
+var alphabet = []string{"A","B","C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "O", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
 
 // Network parameters
 var defaultWeight = float64(100.0);
@@ -78,43 +79,43 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
   output := make([]float64, len(simulation.GetTimeSeries()));
 
+  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
+
+  // Conditions for recieveing input.
+  spikingNeuron.SetInputPredicate(func (t, T1 float64, this *sn.SpikingNeuron) bool {
+    return t > T1;
+  });
+
+  spikingNeuron.SetInputSuccess(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+    return this.GetInput();
+  });
+
+  spikingNeuron.SetInputFail(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+    return defaultInputCase;
+  });
+
+  // Conditions for firing the neuron.
+  spikingNeuron.SetPredicate(func (t float64, i int, this *sn.SpikingNeuron) bool {
+    return this.GetV() > defaultVCutoff;
+  });
+
+  spikingNeuron.SetSuccess(func (t float64, i int, this *sn.SpikingNeuron) bool {
+    output[i] = defaultVCutoff;
+
+    if t > defaultMeasureStart {
+      this.SetSpikes(this.GetSpikes() + 1);
+    }
+    return true;
+  });
+
+  spikingNeuron.SetFail(func (t float64, i int, this *sn.SpikingNeuron) bool {
+    output[i] = this.GetV();
+    return true;
+  });
+
   for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
-    spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
-
-    // Conditions for recieveing input.
-    spikingNeuron.SetInputPredicate(func (t, T1 float64, this *sn.SpikingNeuron) bool {
-      return t > T1;
-    });
-
-    spikingNeuron.SetInputSuccess(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
-      return this.GetInput();
-    });
-
-    spikingNeuron.SetInputFail(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
-      return defaultInputCase;
-    });
-
-    // Conditions for firing the neuron.
-    spikingNeuron.SetPredicate(func (t float64, i int, this *sn.SpikingNeuron) bool {
-      return this.GetV() > defaultVCutoff;
-    });
-
-    spikingNeuron.SetSuccess(func (t float64, i int, this *sn.SpikingNeuron) bool {
-      output[i] = defaultVCutoff;
-
-      if t > defaultMeasureStart {
-        this.SetSpikes(this.GetSpikes() + 1);
-      }
-      return true;
-    });
-
-    spikingNeuron.SetFail(func (t float64, i int, this *sn.SpikingNeuron) bool {
-      output[i] = this.GetV();
-      return true;
-    });
-
     spikingNeuron.SetInput(input);
-    spikingNeuron.Simulate(simulation, nil, nil);
+    spikingNeuron.Simulate(simulation, nil, nil, nil);
 
     if IndexOf(inputMeasurements, input) > -1 {
       inputString := strconv.FormatFloat(input, 'f', 6, 64);
@@ -126,14 +127,15 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
       GeneratePlot(simulation.GetTimeSeries(), output, title, xLabel, yLabel, legendLabel, fileName);
     }
 
-    simulation.SetSpikeRate(input, float64(spikingNeuron.GetSpikes()) / defaultMeasureStart);
+    spikingNeuron.SetSpikeRate(input, float64(spikingNeuron.GetSpikes()) / defaultMeasureStart);
+    spikingNeuron.ResetParameters(defaultA, defaultB, defaultC, defaultD);
   }
 
-  meanSketch := simulation.GetSketch();
+  spikeRates := spikingNeuron.GetSpikeRate();
   means := make([]float64, len(inputMeasurements));
 
   for index, val := range inputMeasurements {
-    means[index] = meanSketch[val];
+    means[index] = spikeRates[val];
   }
 
   title := "Mean Spike Rate of Phasic Spiking Neuron";
@@ -163,10 +165,44 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
-  // Feed the first input to the externally connected neuron.
-  network[0].SetInput(10.0);
+  var testNetwork *sn.Network;
 
-  // Create a new network simulation of connections feeding from/to neurons.
-  testNetwork := sn.NewNetwork(network);
-  testNetwork.Simulate(simulation);
+  for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
+    // Feed the first input to the externally connected neuron.
+    network[0].SetInput(input);
+
+    // Create a new network simulation of connections feeding from/to neurons.
+    testNetwork = sn.NewNetwork(network);
+    testNetwork.Simulate(simulation);
+
+    for _, neuron := range testNetwork.GetNeurons() {
+      neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
+    }
+  }
+
+
+
+  // Measure and plot out mean spike rates.
+  meansMap := make(map[string][]float64);
+
+  for _, neuron := range testNetwork.GetNeurons() {
+    means := make([]float64, len(inputMeasurements));
+    for i, selectedInput := range inputMeasurements {
+      neuronSpikeRate := neuron.GetSpikeRate();
+      means[i] = neuronSpikeRate[selectedInput];
+    }
+    meansMap[neuron.GetId()] = means;
+  }
+
+  plotIndex := int(0);
+  for _, value := range meansMap {
+    plotIndexString := alphabet[plotIndex];
+    title := "Mean Spike Rate of Phasic Spiking Neuron " + plotIndexString;
+    xLabel := "Input";
+    yLabel := "Spike Rate";
+    legendLabel := "Spike Rate as a Function of Input";
+    fileName := "plots/spiking-neuron-network-mean-spike-rate-" + plotIndexString + ".png";
+    GeneratePlot(inputMeasurements, value, title, xLabel, yLabel, legendLabel, fileName);
+    plotIndex++;
+  }
 };

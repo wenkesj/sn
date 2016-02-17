@@ -30,12 +30,14 @@ type SpikingNeuron struct {
   success DecisionFunction;
   fail DecisionFunction;
   spikes int;
+  spikeRateMap map[float64]float64;
   input float64;
   connections []*Connection;
 };
 
 func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
   id := uuid.NewV4().String();
+  spikeRateMap := make(map[float64]float64);
   return &SpikingNeuron{
     a: a,
     b: b,
@@ -45,6 +47,7 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     u: b * defaultV,
     input: 0,
     spikes: 0,
+    spikeRateMap: spikeRateMap,
     predicate: nil,
     success: nil,
     fail: nil,
@@ -54,6 +57,17 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     id: id,
     connections: nil,
   };
+};
+
+func (this *SpikingNeuron) ResetParameters(a, b, c, d float64) {
+  this.a = a;
+  this.b = b;
+  this.c = c;
+  this.d = d;
+  this.V = defaultV;
+  this.u = b * defaultV;
+  this.input = 0;
+  this.spikes = 0;
 };
 
 func (this *SpikingNeuron) SetV(V float64) {
@@ -86,6 +100,14 @@ func (this *SpikingNeuron) GetC() float64 {
 
 func (this *SpikingNeuron) GetD() float64 {
   return this.d;
+};
+
+func (this *SpikingNeuron) SetSpikeRate(key, val float64) {
+  this.spikeRateMap[key] = val;
+};
+
+func (this *SpikingNeuron) GetSpikeRate() map[float64]float64 {
+  return this.spikeRateMap;
 };
 
 func (this *SpikingNeuron) SetSpikes(spikes int) {
@@ -188,7 +210,7 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
   }
 };
 
-func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan struct{}, waitGroup *sync.WaitGroup) {
+func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan struct{}, simulationWaitGroup *sync.WaitGroup, neuronWaitGroup *sync.WaitGroup) {
   I := float64(0);
 
   steps := simulation.GetSteps();
@@ -200,8 +222,9 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan
   uu := make([]float64, len(timeSeries));
 
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
-    if startSimulation != nil && waitGroup != nil {
+    if startSimulation != nil && simulationWaitGroup != nil && neuronWaitGroup != nil {
       <- startSimulation;
+      neuronWaitGroup.Add(1);
     }
 
     timeSeries[i] = t;
@@ -226,12 +249,17 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan
       this.GetFail()(t, i, this);
     }
 
+    if neuronWaitGroup != nil {
+      neuronWaitGroup.Done();
+      neuronWaitGroup.Wait();
+    }
+
     uu[i] = this.GetU();
   }
 
   simulation.SetTimeSeries(timeSeries);
 
-  if waitGroup != nil {
-    waitGroup.Done();
+  if simulationWaitGroup != nil {
+    simulationWaitGroup.Done();
   }
 };

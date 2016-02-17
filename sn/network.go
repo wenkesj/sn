@@ -20,6 +20,10 @@ func NewNetwork(neurons []*SpikingNeuron) *Network {
   };
 };
 
+func (this *Network) GetNeurons() []*SpikingNeuron {
+  return this.neurons;
+};
+
 func (this *Network) Simulate(simulation *Simulation) {
   // Create a new shared lock.
   mutex := new(sync.Mutex);
@@ -37,15 +41,11 @@ func (this *Network) Simulate(simulation *Simulation) {
     });
 
     neuron.SetInputSuccess(func (t, T1 float64, this *SpikingNeuron) float64 {
-      // Set locks and wait for signals.
       return this.GetInput();
-      // Wait for signals to get correct input.
     });
 
     neuron.SetInputFail(func (t, T1 float64, this *SpikingNeuron) float64 {
-      // Set locks and wait for signals.
       return defaultInputCase;
-      // Wait for signals to get correct input.
     });
 
     // Assign predicates.
@@ -55,9 +55,13 @@ func (this *Network) Simulate(simulation *Simulation) {
 
     neuron.SetSuccess(func (timeIndex float64, currentIndex int, this *SpikingNeuron) bool {
       // Send the output to the connected neuron.
+      mutex.Lock();
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
-          connection.GetTarget().SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess);
+          target := connection.GetTarget();
+          // Reduce the product of connection weight and output.
+          connectionInput := target.GetInput();
+          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess + connectionInput);
         }
       }
 
@@ -65,6 +69,7 @@ func (this *Network) Simulate(simulation *Simulation) {
       if timeIndex > defaultMeasureStart {
         this.SetSpikes(this.GetSpikes() + 1);
       }
+      mutex.Unlock();
       return true;
     });
 
@@ -74,8 +79,10 @@ func (this *Network) Simulate(simulation *Simulation) {
       mutex.Lock();
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
+          target := connection.GetTarget();
           // Once the first neuron reaches this lock, send it's response to the next neuron.
-          connection.GetTarget().SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail);
+          connectionInput := target.GetInput();
+          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail + connectionInput);
         }
       }
       // Unlock the next neuron that is connected to this one.
@@ -85,15 +92,19 @@ func (this *Network) Simulate(simulation *Simulation) {
   }
 
   // Create a new WaitGroup for simulation to complete after all have been completed.
-  var waitGroup sync.WaitGroup;
+  var simulationWaitGroup sync.WaitGroup;
+
+  // Create a wait group for neurons.
+  var neuronWaitGroup sync.WaitGroup;
+
   startSimulation := make(chan struct{});
 
   for _, neuron := range this.neurons {
-    waitGroup.Add(1);
-    go neuron.Simulate(simulation, startSimulation, &waitGroup);
+    simulationWaitGroup.Add(1);
+    go neuron.Simulate(simulation, startSimulation, &simulationWaitGroup, &neuronWaitGroup);
   }
 
   // Wait for the simulation to complete.
   close(startSimulation);
-  waitGroup.Wait();
+  simulationWaitGroup.Wait();
 };
