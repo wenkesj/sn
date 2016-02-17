@@ -180,8 +180,18 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     testNetwork = sn.NewNetwork(network);
     testNetwork.Simulate(simulation);
 
-    for _, neuron := range testNetwork.GetNeurons() {
+    for plotIndex, neuron := range testNetwork.GetNeurons() {
+      plotIndexString := alphabet[plotIndex];
+      inputString := strconv.FormatFloat(input, 'f', 6, 64);
+      title := "Phasic Spiking Neuron " + plotIndexString + " @ I = " + inputString;
+      xLabel := "Time Series";
+      yLabel := "Membrane Potential";
+      legendLabel := "Membrane Potential over Time";
+      fileName := "plots/spiking-neuron-" + plotIndexString + "-" + inputString + ".png";
+      GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
+
       neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
+      neuron.ResetParameters(defaultA, defaultB, defaultC, defaultD);
     }
 
     if input == 1 {

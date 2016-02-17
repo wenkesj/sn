@@ -143,8 +143,7 @@ func (this *Network) Simulate(simulation *Simulation) {
         if connection.IsWriteable() {
           target := connection.GetTarget();
           // Reduce the product of connection weight and output.
-          connectionInput := target.GetInput();
-          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess + connectionInput);
+          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialSuccess);
         }
       }
 
@@ -163,8 +162,7 @@ func (this *Network) Simulate(simulation *Simulation) {
         if connection.IsWriteable() {
           target := connection.GetTarget();
           // Once the first neuron reaches this lock, send it's response to the next neuron.
-          connectionInput := target.GetInput();
-          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail + connectionInput);
+          target.SetInput(connection.GetWeight() * defaultOutputMembranePotentialFail);
         }
       }
       return true;
