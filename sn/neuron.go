@@ -1,7 +1,8 @@
 package sn;
 
 import (
-  "sync";
+  "fmt";
+  "time";
   uuid "github.com/satori/go.uuid";
 );
 
@@ -32,6 +33,7 @@ type SpikingNeuron struct {
   spikes int;
   spikeRateMap map[float64]float64;
   input float64;
+  outputs []float64;
   connections []*Connection;
 };
 
@@ -46,6 +48,7 @@ func NewSpikingNeuron(a, b, c, d float64) *SpikingNeuron {
     V: defaultV,
     u: b * defaultV,
     input: 0,
+    outputs: nil,
     spikes: 0,
     spikeRateMap: spikeRateMap,
     predicate: nil,
@@ -66,6 +69,7 @@ func (this *SpikingNeuron) ResetParameters(a, b, c, d float64) {
   this.d = d;
   this.V = defaultV;
   this.u = b * defaultV;
+  this.outputs = nil;
   this.input = 0;
   this.spikes = 0;
 };
@@ -100,6 +104,18 @@ func (this *SpikingNeuron) GetC() float64 {
 
 func (this *SpikingNeuron) GetD() float64 {
   return this.d;
+};
+
+func (this *SpikingNeuron) SetOutputs(outputs []float64) {
+  this.outputs = outputs;
+};
+
+func (this *SpikingNeuron) SetOutput(index int, output float64) {
+  this.outputs[index] = output;
+};
+
+func (this *SpikingNeuron) GetOutputs() []float64 {
+  return this.outputs;
 };
 
 func (this *SpikingNeuron) SetSpikeRate(key, val float64) {
@@ -210,7 +226,7 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
   }
 };
 
-func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan struct{}, simulationWaitGroup *sync.WaitGroup, neuronWaitGroup *sync.WaitGroup) {
+func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *AtomicNeuron) {
   I := float64(0);
 
   steps := simulation.GetSteps();
@@ -221,13 +237,19 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan
 
   uu := make([]float64, len(timeSeries));
 
-  for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
-    if startSimulation != nil && simulationWaitGroup != nil && neuronWaitGroup != nil {
-      <- startSimulation;
-      neuronWaitGroup.Add(1);
-    }
+  this.SetOutputs(make([]float64, len(timeSeries)));
 
+  for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
     timeSeries[i] = t;
+
+    // First neuron lock's here
+    // Second neuron goes in after it unlocks and locks it.
+    // Third neuron ...
+    if atomicNeuron != nil {
+      time.Sleep(time.Millisecond);
+      fmt.Println("Got lock " + this.GetId());
+      atomicNeuron.Lock();
+    }
 
     if this.GetInputPredicate()(t, T1, this) {
       I = this.GetInputSuccess()(t, T1, this);
@@ -239,7 +261,6 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan
     this.SetU(this.GetU() + tau * this.GetA() * (this.GetB() * this.GetV() - this.GetU()));
 
     if this.GetPredicate()(t, i, this) {
-      // Fire...
       this.GetSuccess()(t, i, this);
       // Default results.
       this.SetV(this.GetC());
@@ -249,17 +270,17 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, startSimulation chan
       this.GetFail()(t, i, this);
     }
 
-    if neuronWaitGroup != nil {
-      neuronWaitGroup.Done();
-      neuronWaitGroup.Wait();
-    }
-
     uu[i] = this.GetU();
+
+    if atomicNeuron != nil {
+      atomicNeuron.Wait();
+    }
   }
 
   simulation.SetTimeSeries(timeSeries);
 
-  if simulationWaitGroup != nil {
-    simulationWaitGroup.Done();
+  if atomicNeuron != nil {
+    atomicNeuron.DoneWaitGroup();
+    fmt.Println("Finished " + this.GetId());
   }
 };

@@ -28,6 +28,7 @@ var defaultInputCase = float64(0);
 var startInput = float64(1.0);
 var maxInput = float64(20);
 var inputIncrement = float64(0.25);
+var lazyIncrement = float64(5);
 var inputMeasurements = []float64{1, 5, 10, 15, 20};
 var defaultVCutoff = float64(30);
 var alphabet = []string{"A","B","C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "O", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
@@ -115,7 +116,7 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
 
   for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
     spikingNeuron.SetInput(input);
-    spikingNeuron.Simulate(simulation, nil, nil, nil);
+    spikingNeuron.Simulate(simulation, nil);
 
     if IndexOf(inputMeasurements, input) > -1 {
       inputString := strconv.FormatFloat(input, 'f', 6, 64);
@@ -167,7 +168,11 @@ func TestSpikingNeuronNetwork(t *testing.T) {
 
   var testNetwork *sn.Network;
 
-  for input := startInput; input < maxInput + inputIncrement; input = input + inputIncrement {
+  for input := float64(0); input < maxInput + lazyIncrement; input = input + lazyIncrement {
+    if input == 0 {
+      input = 1;
+    }
+
     // Feed the first input to the externally connected neuron.
     network[0].SetInput(input);
 
@@ -178,9 +183,11 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     for _, neuron := range testNetwork.GetNeurons() {
       neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
     }
+
+    if input == 1 {
+      input = 0;
+    }
   }
-
-
 
   // Measure and plot out mean spike rates.
   meansMap := make(map[string][]float64);
