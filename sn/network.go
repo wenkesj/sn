@@ -65,9 +65,11 @@ func (this *AtomicNeuron) OuterUnlock() {
 func (this *AtomicNeuron) Wait(neuron *SpikingNeuron) {
   // Next, this neuron lets the next neuron go through.
   this.innerSignal.Done();
-  this.OuterUnlock();
   time.Sleep(time.Millisecond);
+  this.OuterUnlock();
+  fmt.Println(neuron.GetId(),"waiting for other neurons...");
   this.innerSignal.Wait();
+  fmt.Println(neuron.GetId(),"moving  on...");
 };
 
 func (this *AtomicNeuron) FinishWaitGroup() {
@@ -113,27 +115,18 @@ func (this *Network) Simulate(simulation *Simulation) {
       // Wait for each connection that is not a writeable connection.
       inputSum := float64(0);
       for _, connection := range this.GetConnections() {
-        fmt.Println("Success", connection.IsWriteable());
         if !connection.IsWriteable() {
           // Wait for the connection to be ready for the neuron to recieve input.
-          fmt.Println("Waiting for channels...");
-          <-connection.GetReady();
+          fmt.Println(this.GetId(),"Waiting for channels...");
           // Sum the connections to the neuron.
           inputSum += connection.GetOutput();
-          fmt.Println("Connection recieved!");
-          // TODO SET READY - CLEAN AND CLOSE CHANNEL.
-          connection.SetReady(false);
+          fmt.Println(this.GetId(),"Connection recieved!");
         }
-        fmt.Println("Moving on...");
       }
-
-      // Ready the next neuron.
-      this.SetInput(inputSum);
       return this.GetInput();
     });
 
     neuron.SetInputFail(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
-      this.SetInput(defaultInputCase);
       return defaultInputCase;
     });
 
@@ -149,8 +142,6 @@ func (this *Network) Simulate(simulation *Simulation) {
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialSuccess);
-          // TODO SET READY - CLEAN AND CLOSE CHANNEL.
-          connection.SetReady(true);
         }
       }
 
@@ -170,8 +161,6 @@ func (this *Network) Simulate(simulation *Simulation) {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialFail);
           fmt.Println("Connection sent!");
-          // TODO SET READY - CLEAN AND CLOSE CHANNEL.
-          connection.SetReady(true);
         }
       }
       return true;

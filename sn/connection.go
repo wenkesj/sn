@@ -7,10 +7,12 @@ type Connection struct {
   from *SpikingNeuron;
   writeable bool;
   ready chan bool;
+  maxChannelLength int;
 };
 
 func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool) *Connection {
   ready := make(chan bool, 2);
+  maxChannelLength := 2;
   return &Connection{
     output: 0,
     weight: weight,
@@ -18,14 +20,18 @@ func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, write
     from: from,
     writeable: writeable,
     ready: ready,
+    maxChannelLength: maxChannelLength,
   };
 };
 
-func (this *Connection) GetReady() chan bool {
-  return this.ready;
+func (this *Connection) GetReady() bool {
+  currentReady := <-this.ready;
+  this.ready = make(chan bool, this.maxChannelLength + 1);
+  return currentReady;
 };
 
 func (this *Connection) SetReady(ready bool) {
+  this.ready = make(chan bool, this.maxChannelLength + 1);
   this.ready <- ready;
 };
 
