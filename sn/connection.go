@@ -1,21 +1,68 @@
 package sn;
 
+import (
+  "fmt";
+  "sync/atomic";
+  "unsafe";
+);
+
 type Connection struct {
+  output float64;
   weight float64;
-  target *SpikingNeuron;
+  to *SpikingNeuron;
+  from *SpikingNeuron;
   writeable bool;
+  ready chan bool;
+  maxChannelLength int;
+  outputAddress *unsafe.Pointer;
 };
 
-func NewConnection(target *SpikingNeuron, weight float64, writeable bool) *Connection {
+func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool, outputAddress *unsafe.Pointer) *Connection {
+  ready := make(chan bool, 2);
+  maxChannelLength := 2;
   return &Connection{
+    outputAddress: outputAddress,
     weight: weight,
-    target: target,
+    to: to,
+    from: from,
     writeable: writeable,
+    ready: ready,
+    maxChannelLength: maxChannelLength,
   };
 };
 
-func (this *Connection) GetTarget() *SpikingNeuron {
-  return this.target;
+func (this *Connection) GetReady() bool {
+  currentReady := <-this.ready;
+  this.ready = make(chan bool, this.maxChannelLength + 1);
+  return currentReady;
+};
+
+func (this *Connection) SetReady(ready bool) {
+  this.ready = make(chan bool, this.maxChannelLength + 1);
+  this.ready <- ready;
+};
+
+func (this *Connection) GetOutput() float64 {
+  // Atomically load the output of the connection.
+  fmt.Println("Getting pointer", atomic.LoadPointer(this.outputAddress));
+  outputPointer := (*float64)(atomic.LoadPointer(this.outputAddress));
+  return *outputPointer;
+};
+
+func (this *Connection) SetOutput(output float64) {
+  // Atomically store the output of the connection.
+  output = this.GetWeight() * output;
+  outputPointer := unsafe.Pointer(&output);
+  fmt.Println("Storing pointer", this.outputAddress);
+  atomic.StorePointer(this.outputAddress, outputPointer);
+};
+
+func (this *Connection) GetTo() *SpikingNeuron {
+  return this.to;
+};
+
+func (this *Connection) GetFrom() *SpikingNeuron {
+  return this.from;
 };
 
 func (this *Connection) GetWeight() float64 {

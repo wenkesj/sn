@@ -1,6 +1,7 @@
 package tests;
 
 import (
+  "unsafe";
   "testing";
   "strconv";
   "github.com/gonum/plot";
@@ -80,18 +81,18 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
   output := make([]float64, len(simulation.GetTimeSeries()));
 
-  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
+  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, 0);
 
   // Conditions for recieveing input.
-  spikingNeuron.SetInputPredicate(func (t, T1 float64, this *sn.SpikingNeuron) bool {
+  spikingNeuron.SetInputPredicate(func (i int, t, T1 float64, this *sn.SpikingNeuron) bool {
     return t > T1;
   });
 
-  spikingNeuron.SetInputSuccess(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+  spikingNeuron.SetInputSuccess(func (i int, t, T1 float64, this *sn.SpikingNeuron) float64 {
     return this.GetInput();
   });
 
-  spikingNeuron.SetInputFail(func (t, T1 float64, this *sn.SpikingNeuron) float64 {
+  spikingNeuron.SetInputFail(func (i int, t, T1 float64, this *sn.SpikingNeuron) float64 {
     return defaultInputCase;
   });
 
@@ -155,13 +156,23 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a feed-forward network.
   for i := 0; i < numberOfSpikingNeurons; i++ {
     // Define the neuron.
-    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD);
+    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i));
 
     if i > 0 {
+      connectionAddress := float64(0);
+      destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
       // Create a connection from one neuron to the next.
-      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0);
+      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0, destination);
     }
   }
+
+  // Give the first neuron an external input.
+  // This is a hacky way to create an external connection...
+  connectionAddress := float64(0);
+  destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
+
+  externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1));
+  externalSource.CreateConnection(network[0], 1.0, true, 0, destination);
 
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
@@ -174,7 +185,9 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     }
 
     // Feed the first input to the externally connected neuron.
-    network[0].SetInput(input);
+    for _, connection := range network[0].GetConnections() {
+      connection.SetOutput(input);
+    }
 
     // Create a new network simulation of connections feeding from/to neurons.
     testNetwork = sn.NewNetwork(network);
@@ -200,7 +213,7 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   }
 
   // Measure and plot out mean spike rates.
-  meansMap := make(map[string][]float64);
+  meansMap := make(map[int64][]float64);
 
   for _, neuron := range testNetwork.GetNeurons() {
     means := make([]float64, len(inputMeasurements));
