@@ -1,6 +1,7 @@
 package sn;
 
 import (
+  "time";
   "fmt";
 );
 
@@ -245,7 +246,12 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
     // Lock...
     if atomicNeuron != nil {
-      atomicNeuron.Lock();
+      // Increment to number of neurons...
+      fmt.Println("Neuron", this.GetId(), "incremented the counter");
+      atomicNeuron.GetInnerWaitGroup().Add(1);
+      fmt.Println("Neuron", this.GetId(), "grabbed the lock");
+      atomicNeuron.OuterLock();
+      time.Sleep(time.Millisecond);
     }
 
     // Get all the outputs from each connection.
@@ -272,14 +278,16 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
     // Wait for all other Neurons to finish their computation.
     if atomicNeuron != nil {
-      atomicNeuron.Wait();
+      fmt.Println("Neuron", this.GetId(), "released the lock");
+      atomicNeuron.Wait(this);
+      fmt.Println("Neuron", this.GetId(), "is finished at time", t);
     }
   }
 
   simulation.SetTimeSeries(timeSeries);
 
   if atomicNeuron != nil {
-    atomicNeuron.DoneWaitGroup();
     fmt.Println("Finished", this.GetId());
+    atomicNeuron.DoneWaitGroup();
   }
 };

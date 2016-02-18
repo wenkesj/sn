@@ -6,18 +6,27 @@ type Connection struct {
   to *SpikingNeuron;
   from *SpikingNeuron;
   writeable bool;
-  ready bool;
+  ready chan bool;
 };
 
 func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool) *Connection {
+  ready := make(chan bool, 2);
   return &Connection{
     output: 0,
     weight: weight,
     to: to,
     from: from,
     writeable: writeable,
-    ready: false,
+    ready: ready,
   };
+};
+
+func (this *Connection) GetReady() chan bool {
+  return this.ready;
+};
+
+func (this *Connection) SetReady(ready bool) {
+  this.ready <- ready;
 };
 
 func (this *Connection) GetOutput() float64 {
@@ -38,14 +47,6 @@ func (this *Connection) GetFrom() *SpikingNeuron {
 
 func (this *Connection) GetWeight() float64 {
   return this.weight;
-};
-
-func (this *Connection) IsReady() bool {
-  return this.ready;
-};
-
-func (this *Connection) SetReady(ready bool) {
-  this.ready = ready;
 };
 
 func (this *Connection) IsWriteable() bool {
