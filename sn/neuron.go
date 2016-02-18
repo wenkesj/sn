@@ -1,7 +1,6 @@
 package sn;
 
 import (
-  "time";
   "fmt";
   "unsafe";
 );
@@ -248,12 +247,11 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
     // Lock...
     if atomicNeuron != nil {
-      // Increment to number of neurons...
+        // Increment to number of neurons...
       fmt.Println("Neuron", this.GetId(), "incremented the counter");
       atomicNeuron.GetInnerWaitGroup().Add(1);
       fmt.Println("Neuron", this.GetId(), "grabbed the lock");
       atomicNeuron.OuterLock();
-      time.Sleep(time.Millisecond);
     }
 
     // Get all the outputs from each connection.
