@@ -163,6 +163,11 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     }
   }
 
+  // Give the first neuron an external input.
+  // This is a hacky way to create an external connection...
+  externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1));
+  externalSource.CreateConnection(network[0], 1.0, true, 0);
+
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
@@ -174,7 +179,9 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     }
 
     // Feed the first input to the externally connected neuron.
-    network[0].SetInput(input);
+    for _, connection := range network[0].GetConnections() {
+      connection.SetOutput(input);
+    }
 
     // Create a new network simulation of connections feeding from/to neurons.
     testNetwork = sn.NewNetwork(network);

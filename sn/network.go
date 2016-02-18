@@ -69,7 +69,7 @@ func (this *AtomicNeuron) Wait(neuron *SpikingNeuron) {
   this.OuterUnlock();
   fmt.Println(neuron.GetId(),"waiting for other neurons...");
   this.innerSignal.Wait();
-  fmt.Println(neuron.GetId(),"moving  on...");
+  fmt.Println(neuron.GetId(),"is no longer waiting!");
 };
 
 func (this *AtomicNeuron) FinishWaitGroup() {
@@ -112,18 +112,15 @@ func (this *Network) Simulate(simulation *Simulation) {
     });
 
     neuron.SetInputSuccess(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
-      // Wait for each connection that is not a writeable connection.
       inputSum := float64(0);
       for _, connection := range this.GetConnections() {
         if !connection.IsWriteable() {
-          // Wait for the connection to be ready for the neuron to recieve input.
-          fmt.Println(this.GetId(),"Waiting for channels...");
           // Sum the connections to the neuron.
           inputSum += connection.GetOutput();
-          fmt.Println(this.GetId(),"Connection recieved!");
+          fmt.Println(this.GetId(),"connection recieved!");
         }
       }
-      return this.GetInput();
+      return inputSum;
     });
 
     neuron.SetInputFail(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
@@ -136,12 +133,14 @@ func (this *Network) Simulate(simulation *Simulation) {
     });
 
     neuron.SetSuccess(func (timeIndex float64, currentIndex int, this *SpikingNeuron) bool {
+      // Set it's own output.
       this.SetOutput(currentIndex, defaultVCutoff);
 
       // Send the output to the connected neuron.
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialSuccess);
+          fmt.Println(this.GetId(),"connection sent!");
         }
       }
 
@@ -153,14 +152,14 @@ func (this *Network) Simulate(simulation *Simulation) {
     });
 
     neuron.SetFail(func (timeIndex float64, currentIndex int, this *SpikingNeuron) bool {
-      // Send the output to the connected neurons.
+      // Set its own output unit
       this.SetOutput(currentIndex, this.GetV());
 
       // Send the output to the connected neuron.
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialFail);
-          fmt.Println("Connection sent!");
+          fmt.Println(this.GetId(),"connection sent!");
         }
       }
       return true;
