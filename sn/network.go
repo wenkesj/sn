@@ -19,7 +19,6 @@ type AtomicNeuron struct {
   simulationWaitGroup *sync.WaitGroup;
   mutexSignal *sync.Mutex;
   innerSignal *sync.WaitGroup;
-  atomicSignalCondition *uint64;
   numberOfOtherNeurons int;
 };
 
@@ -28,7 +27,6 @@ func NewAtomicNeuron(
   simulationWaitGroup *sync.WaitGroup,
   mutexSignal *sync.Mutex,
   innerSignal *sync.WaitGroup,
-  atomicSignalCondition *uint64,
   numberOfOtherNeurons int,
 ) *AtomicNeuron {
 
@@ -37,7 +35,6 @@ func NewAtomicNeuron(
     simulationWaitGroup: simulationWaitGroup,
     mutexSignal: mutexSignal,
     innerSignal: innerSignal,
-    atomicSignalCondition: atomicSignalCondition,
     numberOfOtherNeurons: numberOfOtherNeurons,
   };
 };
@@ -112,12 +109,12 @@ func (this *Network) Simulate(simulation *Simulation) {
     });
 
     neuron.SetInputSuccess(func (i int, t, T1 float64, this *SpikingNeuron) float64 {
-      inputSum := float64(0);
+      inputSum := this.GetInput();
       for _, connection := range this.GetConnections() {
         if !connection.IsWriteable() {
           // Sum the connections to the neuron.
           inputSum += connection.GetOutput();
-          fmt.Println(this.GetId(),"connection recieved!");
+          fmt.Println(this.GetId(),"connection recieved with value of", inputSum);
         }
       }
       return inputSum;
@@ -140,7 +137,7 @@ func (this *Network) Simulate(simulation *Simulation) {
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialSuccess);
-          fmt.Println(this.GetId(),"connection sent!");
+          fmt.Println("Fire: ",this.GetId(),", connection sent",connection.GetOutput());
         }
       }
 
@@ -159,7 +156,7 @@ func (this *Network) Simulate(simulation *Simulation) {
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialFail);
-          fmt.Println(this.GetId(),"connection sent!");
+          fmt.Println("Fail: ",this.GetId(),", connection sent",connection.GetOutput());
         }
       }
       return true;
@@ -171,8 +168,7 @@ func (this *Network) Simulate(simulation *Simulation) {
   var innerSignal sync.WaitGroup;
   mutexSignal := new(sync.Mutex);
   startSimulation := make(chan struct{});
-  var atomicSignalCondition uint64 = 0;
-  atomicNeuron := NewAtomicNeuron(startSimulation, &simulationWaitGroup, mutexSignal, &innerSignal, &atomicSignalCondition, len(this.neurons));
+  atomicNeuron := NewAtomicNeuron(startSimulation, &simulationWaitGroup, mutexSignal, &innerSignal, len(this.neurons));
 
   // The first neuron starts the simulation ahead of all the others.
   // It grabs the outer lock, blocking all other neurons.

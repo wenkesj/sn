@@ -3,6 +3,7 @@ package sn;
 import (
   "time";
   "fmt";
+  "unsafe";
 );
 
 // Simulation constants.
@@ -200,16 +201,17 @@ func (this *SpikingNeuron) SetInputFail(inputFunction ReturnFloatFunction) {
   this.inputFail = inputFunction;
 };
 
-func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int) {
+func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int, destination *unsafe.Pointer) {
   if this.connections == nil {
     this.connections = []*Connection{};
   }
-  newConnection := NewConnection(targetNeuron, this, weight, writeable);
+  fmt.Println("Created connection", destination);
+  newConnection := NewConnection(targetNeuron, this, weight, writeable, destination);
   this.connections = append(this.connections, newConnection);
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, weight, !writeable, 1);
+  targetNeuron.CreateConnection(this, weight, !writeable, 1, destination);
 };
 
 func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {

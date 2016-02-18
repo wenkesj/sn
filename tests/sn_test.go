@@ -1,6 +1,7 @@
 package tests;
 
 import (
+  "unsafe";
   "testing";
   "strconv";
   "github.com/gonum/plot";
@@ -158,15 +159,20 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i));
 
     if i > 0 {
+      connectionAddress := float64(0);
+      destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
       // Create a connection from one neuron to the next.
-      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0);
+      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0, destination);
     }
   }
 
   // Give the first neuron an external input.
   // This is a hacky way to create an external connection...
+  connectionAddress := float64(0);
+  destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
+
   externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1));
-  externalSource.CreateConnection(network[0], 1.0, true, 0);
+  externalSource.CreateConnection(network[0], 1.0, true, 0, destination);
 
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
