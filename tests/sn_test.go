@@ -1,9 +1,9 @@
 package tests;
 
 import (
-  "unsafe";
   "testing";
   "strconv";
+  "github.com/garyburd/redigo/redis";
   "github.com/gonum/plot";
   "github.com/gonum/plot/plotter";
   "github.com/gonum/plot/plotutil";
@@ -151,6 +151,14 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
 // Neuron A and B example.
 func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a group of neurons with the default parameters.
+  // Connect to a redis client.
+  redisConnection, err := redis.Dial("tcp", ":6379");
+  if err != nil {
+    // Handle error if any...
+    panic(err);
+  }
+  defer redisConnection.Close();
+
   network := make([]*sn.SpikingNeuron, numberOfSpikingNeurons);
 
   // Create a feed-forward network.
@@ -159,20 +167,14 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i));
 
     if i > 0 {
-      connectionAddress := float64(0);
-      destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
       // Create a connection from one neuron to the next.
-      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0, destination);
+      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0, redisConnection);
     }
   }
 
-  // Give the first neuron an external input.
   // This is a hacky way to create an external connection...
-  connectionAddress := float64(0);
-  destination := (*unsafe.Pointer)(unsafe.Pointer(&connectionAddress));
-
   externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1));
-  externalSource.CreateConnection(network[0], 1.0, true, 0, destination);
+  externalSource.CreateConnection(network[0], 1.0, true, 0, redisConnection);
 
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
@@ -184,9 +186,10 @@ func TestSpikingNeuronNetwork(t *testing.T) {
       input = 1;
     }
 
-    // Feed the first input to the externally connected neuron.
-    for _, connection := range network[0].GetConnections() {
-      connection.SetOutput(input);
+    for _, connection := range externalSource.GetConnections() {
+      if connection.IsWriteable() {
+        connection.SetOutput(input);
+      }
     }
 
     // Create a new network simulation of connections feeding from/to neurons.

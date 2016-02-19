@@ -2,7 +2,7 @@ package sn;
 
 import (
   "fmt";
-  "unsafe";
+  "github.com/garyburd/redigo/redis";
 );
 
 // Simulation constants.
@@ -200,17 +200,16 @@ func (this *SpikingNeuron) SetInputFail(inputFunction ReturnFloatFunction) {
   this.inputFail = inputFunction;
 };
 
-func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int, destination *unsafe.Pointer) {
+func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int, redisConnection redis.Conn) {
   if this.connections == nil {
     this.connections = []*Connection{};
   }
-  fmt.Println("Created connection", destination);
-  newConnection := NewConnection(targetNeuron, this, weight, writeable, destination);
+  newConnection := NewConnection(targetNeuron, this, weight, writeable, redisConnection);
   this.connections = append(this.connections, newConnection);
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, weight, !writeable, 1, destination);
+  targetNeuron.CreateConnection(this, weight, !writeable, 1, redisConnection);
 };
 
 func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {

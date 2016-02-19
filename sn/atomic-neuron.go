@@ -45,10 +45,9 @@ func (this *AtomicNeuron) OuterUnlock() {
 };
 
 func (this *AtomicNeuron) Wait(neuron *SpikingNeuron) {
-  // Next, this neuron lets the next neuron go through.
-  this.innerSignal.Done();
   // Wait for the other one to increment the counter first so this neuron doesn't go through.
-  time.Sleep(time.Millisecond * time.Duration(this.GetNumber()));
+  this.innerSignal.Done();
+  time.Sleep(time.Millisecond);
   this.OuterUnlock();
   fmt.Println(neuron.GetId(),"waiting for other neurons...");
   this.innerSignal.Wait();

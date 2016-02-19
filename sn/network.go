@@ -45,7 +45,6 @@ func (this *Network) Simulate(simulation *Simulation) {
         if !connection.IsWriteable() {
           // Sum the connections to the neuron.
           inputSum += connection.GetOutput();
-          fmt.Println(connection.GetOutput());
           fmt.Println(this.GetId(),"connection recieved with value of", inputSum);
         }
       }

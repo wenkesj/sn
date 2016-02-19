@@ -2,59 +2,52 @@ package sn;
 
 import (
   "fmt";
-  "sync/atomic";
-  "unsafe";
+  "strconv";
+  "github.com/garyburd/redigo/redis";
 );
 
 type Connection struct {
-  output float64;
   weight float64;
   to *SpikingNeuron;
   from *SpikingNeuron;
   writeable bool;
-  ready chan bool;
-  maxChannelLength int;
-  outputAddress *unsafe.Pointer;
+  redisConnection redis.Conn;
 };
 
-func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool, outputAddress *unsafe.Pointer) *Connection {
-  ready := make(chan bool, 2);
-  maxChannelLength := 2;
+func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool, redisConnection redis.Conn) *Connection {
   return &Connection{
-    outputAddress: outputAddress,
     weight: weight,
     to: to,
     from: from,
     writeable: writeable,
-    ready: ready,
-    maxChannelLength: maxChannelLength,
+    redisConnection: redisConnection,
   };
 };
 
-func (this *Connection) GetReady() bool {
-  currentReady := <-this.ready;
-  this.ready = make(chan bool, this.maxChannelLength + 1);
-  return currentReady;
-};
-
-func (this *Connection) SetReady(ready bool) {
-  this.ready = make(chan bool, this.maxChannelLength + 1);
-  this.ready <- ready;
-};
+// func Float64frombytes(bytes []byte) float64 {
+//   bits := binary.LittleEndian.Uint64(bytes)
+//   float := math.Float64frombits(bits)
+//   return float
+// }
 
 func (this *Connection) GetOutput() float64 {
   // Atomically load the output of the connection.
-  fmt.Println("Getting pointer", atomic.LoadPointer(this.outputAddress));
-  outputPointer := (*float64)(atomic.LoadPointer(this.outputAddress));
-  return *outputPointer;
+  fmt.Println("GET: " + strconv.FormatInt(this.GetFrom().GetId(), 10) + ".to." + strconv.FormatInt(this.GetTo().GetId(), 10));
+  output, err := this.redisConnection.Do("GET", strconv.FormatInt(this.GetFrom().GetId(), 10) + "." + strconv.FormatInt(this.GetTo().GetId(), 10));
+  if err != nil {
+    panic(err);
+  }
+  if output == nil {
+    fmt.Println("Output is nil");
+  }
+  outputFloatValue, err := strconv.ParseFloat(string(output.([]uint8)), 64);
+  return outputFloatValue;
 };
 
 func (this *Connection) SetOutput(output float64) {
   // Atomically store the output of the connection.
-  output = this.GetWeight() * output;
-  outputPointer := unsafe.Pointer(&output);
-  fmt.Println("Storing pointer", this.outputAddress);
-  atomic.StorePointer(this.outputAddress, outputPointer);
+  fmt.Println("SET: " + strconv.FormatInt(this.GetTo().GetId(), 10) + ".to." + strconv.FormatInt(this.GetFrom().GetId(), 10));
+  this.redisConnection.Do("SET", strconv.FormatInt(this.GetTo().GetId(), 10) + "." + strconv.FormatInt(this.GetFrom().GetId(), 10), output * this.GetWeight());
 };
 
 func (this *Connection) GetTo() *SpikingNeuron {
