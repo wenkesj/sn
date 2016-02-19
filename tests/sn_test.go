@@ -38,7 +38,8 @@ var alphabet = []string{"A","B","C", "D", "E", "F", "G", "H", "I", "J", "K", "L"
 var defaultWeight = float64(100.0);
 var defaultOutputMembranePotentialSuccess = float64(1.0);
 var defaultOutputMembranePotentialFail = float64(0.0);
-var numberOfSpikingNeurons = 2;
+var numberOfSpikingNeurons = 3;
+var numberOfExternalConnections = 3;
 
 func GeneratePlot(x, y []float64, title, xLabel, yLabel, legendLabel, fileName string) {
   outPlotPoints := make(plotter.XYs, len(x));
@@ -81,7 +82,7 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
   output := make([]float64, len(simulation.GetTimeSeries()));
 
-  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, 0);
+  spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, 0, nil);
 
   // Conditions for recieveing input.
   spikingNeuron.SetInputPredicate(func (i int, t, T1 float64, this *sn.SpikingNeuron) bool {
@@ -148,8 +149,8 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   GeneratePlot(inputMeasurements, means, title, xLabel, yLabel, legendLabel, fileName);
 };
 
-// Neuron A and B example.
-func TestSpikingNeuronNetwork(t *testing.T) {
+// External Source -> Neuron A -> Neuron B -> Neuron C ... example.
+func TestSingleConnectionSpikingNeuronNetwork(t *testing.T) {
   // Create a group of neurons with the default parameters.
   // Connect to a redis client.
   redisConnection, err := redis.Dial("tcp", ":6379");
@@ -164,17 +165,17 @@ func TestSpikingNeuronNetwork(t *testing.T) {
   // Create a feed-forward network.
   for i := 0; i < numberOfSpikingNeurons; i++ {
     // Define the neuron.
-    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i));
+    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i), redisConnection);
 
     if i > 0 {
       // Create a connection from one neuron to the next.
-      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0, redisConnection);
+      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0);
     }
   }
 
   // This is a hacky way to create an external connection...
-  externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1));
-  externalSource.CreateConnection(network[0], 1.0, true, 0, redisConnection);
+  externalSource := sn.NewSpikingNeuron(0, 0, 0, 0, int64(-1), redisConnection);
+  externalSource.CreateConnection(network[0], 1.0, true, 0);
 
   // Create a default simulation.
   simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
@@ -237,5 +238,78 @@ func TestSpikingNeuronNetwork(t *testing.T) {
     fileName := "plots/spiking-neuron-network-mean-spike-rate-" + plotIndexString + ".png";
     GeneratePlot(inputMeasurements, value, title, xLabel, yLabel, legendLabel, fileName);
     plotIndex++;
+  }
+};
+
+func TestMultipleConnectionSpikingNeuronNetwork(t *testing.T) {
+  // Create a group of neurons with the default parameters.
+  // Connect to a redis client.
+  redisConnection, err := redis.Dial("tcp", ":6379");
+  if err != nil {
+    // Handle error if any...
+    panic(err);
+  }
+  defer redisConnection.Close();
+
+  network := make([]*sn.SpikingNeuron, numberOfSpikingNeurons);
+
+  // Create a feed-forward network.
+  for i := 0; i < numberOfSpikingNeurons; i++ {
+    // Define the neuron.
+    network[i] = sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, int64(i), redisConnection);
+
+    if i > 0 {
+      // Create a connection from one neuron to the next.
+      network[i - 1].CreateConnection(network[i], defaultWeight, true, 0);
+    }
+  }
+
+  // This is a hacky way to create an external connection...
+  externalConnections := make([]*sn.SpikingNeuron, numberOfExternalConnections);
+  for index, _ := range externalConnections {
+    externalConnections[index] = sn.NewSpikingNeuron(0, 0, 0, 0, int64(-index), redisConnection);
+    externalConnections[index].CreateConnection(network[0], 1.0, true, 0);
+  }
+
+  // Create a default simulation.
+  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
+
+  var testNetwork *sn.Network;
+
+  for input := float64(0); input < maxInput + lazyIncrement; input = input + lazyIncrement {
+    if input == 0 {
+      input = 1;
+    }
+
+    for _, externalSource := range externalConnections {
+      for _, connection := range externalSource.GetConnections() {
+        if connection.IsWriteable() {
+          connection.SetOutput(input);
+        }
+      }
+    }
+
+    // Create a new network simulation of connections feeding from/to neurons.
+    testNetwork = sn.NewNetwork(network);
+    testNetwork.Simulate(simulation);
+
+    for plotIndex, neuron := range testNetwork.GetNeurons() {
+      plotIndexString := alphabet[plotIndex];
+      numberOfConnections := strconv.Itoa(len(neuron.GetConnections()));
+      inputString := strconv.FormatFloat(input, 'f', 6, 64);
+      title := "Phasic Spiking Neuron " + plotIndexString + " with connections " + numberOfConnections + " @ I = " + inputString;
+      xLabel := "Time Series";
+      yLabel := "Membrane Potential";
+      legendLabel := "Membrane Potential over Time";
+      fileName := "plots/spiking-neuron-" + plotIndexString + "-" + inputString + "-with-" + numberOfConnections + "-connections.png";
+      GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
+
+      neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
+      neuron.ResetParameters(defaultA, defaultB, defaultC, defaultD);
+    }
+
+    if input == 1 {
+      input = 0;
+    }
   }
 };
