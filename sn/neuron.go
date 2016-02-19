@@ -1,7 +1,8 @@
 package sn;
 
 import (
-  "fmt";
+  // "fmt";
+  "time";
   "github.com/garyburd/redigo/redis";
 );
 
@@ -29,6 +30,7 @@ type SpikingNeuron struct {
   predicate DecisionFunction;
   success DecisionFunction;
   fail DecisionFunction;
+  redisConnection redis.Conn;
   spikes int;
   spikeRateMap map[float64]float64;
   input float64;
@@ -36,7 +38,7 @@ type SpikingNeuron struct {
   connections []*Connection;
 };
 
-func NewSpikingNeuron(a, b, c, d float64, id int64) *SpikingNeuron {
+func NewSpikingNeuron(a, b, c, d float64, id int64, redisConnection redis.Conn) *SpikingNeuron {
   spikeRateMap := make(map[float64]float64);
   return &SpikingNeuron{
     a: a,
@@ -48,6 +50,7 @@ func NewSpikingNeuron(a, b, c, d float64, id int64) *SpikingNeuron {
     input: 0,
     outputs: nil,
     spikes: 0,
+    redisConnection: redisConnection,
     spikeRateMap: spikeRateMap,
     predicate: nil,
     success: nil,
@@ -70,6 +73,10 @@ func (this *SpikingNeuron) ResetParameters(a, b, c, d float64) {
   this.outputs = nil;
   this.input = 0;
   this.spikes = 0;
+};
+
+func (this *SpikingNeuron) GetStore() redis.Conn {
+  return this.redisConnection;
 };
 
 func (this *SpikingNeuron) SetV(V float64) {
@@ -200,16 +207,16 @@ func (this *SpikingNeuron) SetInputFail(inputFunction ReturnFloatFunction) {
   this.inputFail = inputFunction;
 };
 
-func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int, redisConnection redis.Conn) {
+func (this *SpikingNeuron) CreateConnection(targetNeuron *SpikingNeuron, weight float64, writeable bool, once int) {
   if this.connections == nil {
     this.connections = []*Connection{};
   }
-  newConnection := NewConnection(targetNeuron, this, weight, writeable, redisConnection);
+  newConnection := NewConnection(targetNeuron, this, weight, writeable);
   this.connections = append(this.connections, newConnection);
   if once == 1 {
     return;
   }
-  targetNeuron.CreateConnection(this, weight, !writeable, 1, redisConnection);
+  targetNeuron.CreateConnection(this, weight, !writeable, 1);
 };
 
 func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once int) {
@@ -228,6 +235,42 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
   }
 };
 
+func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64, uu []float64, atomicNeuron *AtomicNeuron) {
+  // Lock...
+  if atomicNeuron != nil {
+      // Increment to number of neurons...
+    // fmt.Println("Neuron", this.GetId(), "incremented the wait counter...");
+    time.Sleep(time.Millisecond);
+    atomicNeuron.GetInnerWaitGroup().Add(1);
+    defer atomicNeuron.GetInnerWaitGroup().Done();
+    // fmt.Println("Neuron", this.GetId(), "grabbed the lock...");
+    time.Sleep(time.Millisecond);
+    atomicNeuron.OuterLock();
+  }
+
+  // Get all the outputs from each connection.
+  if this.GetInputPredicate()(i, t, T1, this) {
+    I = this.GetInputSuccess()(i, t, T1, this);
+  } else {
+    I = this.GetInputFail()(i, t, T1, this);
+  }
+
+  this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
+  this.SetU(this.GetU() + tau * this.GetA() * (this.GetB() * this.GetV() - this.GetU()));
+
+  if this.GetPredicate()(t, i, this) {
+    this.GetSuccess()(t, i, this);
+    // Default results.
+    this.SetV(this.GetC());
+    this.SetU(this.GetU() + this.GetD());
+  } else {
+    // Don't Fire...
+    this.GetFail()(t, i, this);
+  }
+
+  uu[i] = this.GetU();
+}
+
 func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *AtomicNeuron) {
   I := float64(0);
 
@@ -243,50 +286,24 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
     timeSeries[i] = t;
+    this.ScopedSimulation(I, i, t, T1, tau, uu, atomicNeuron);
 
-    // Lock...
     if atomicNeuron != nil {
-        // Increment to number of neurons...
-      fmt.Println("Neuron", this.GetId(), "incremented the counter");
-      atomicNeuron.GetInnerWaitGroup().Add(1);
-      fmt.Println("Neuron", this.GetId(), "grabbed the lock");
-      atomicNeuron.OuterLock();
-    }
-
-    // Get all the outputs from each connection.
-    if this.GetInputPredicate()(i, t, T1, this) {
-      I = this.GetInputSuccess()(i, t, T1, this);
-    } else {
-      I = this.GetInputFail()(i, t, T1, this);
-    }
-
-    this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
-    this.SetU(this.GetU() + tau * this.GetA() * (this.GetB() * this.GetV() - this.GetU()));
-
-    if this.GetPredicate()(t, i, this) {
-      this.GetSuccess()(t, i, this);
-      // Default results.
-      this.SetV(this.GetC());
-      this.SetU(this.GetU() + this.GetD());
-    } else {
-      // Don't Fire...
-      this.GetFail()(t, i, this);
-    }
-
-    uu[i] = this.GetU();
-
-    // Wait for all other Neurons to finish their computation.
-    if atomicNeuron != nil {
-      fmt.Println("Neuron", this.GetId(), "released the lock");
-      atomicNeuron.Wait(this);
-      fmt.Println("Neuron", this.GetId(), "is finished at time", t);
+      // fmt.Println("Neuron", this.GetId(), "released the lock");
+      time.Sleep(time.Millisecond);
+      atomicNeuron.OuterUnlock();
+      // fmt.Println("Neuron", this.GetId(), "is waiting...");
+      time.Sleep(time.Millisecond);
+      atomicNeuron.GetInnerWaitGroup().Wait();
+      time.Sleep(time.Millisecond * 2);
+      // fmt.Println("Neuron", this.GetId(), "is finished at time", t);
     }
   }
 
   simulation.SetTimeSeries(timeSeries);
 
   if atomicNeuron != nil {
-    fmt.Println("Finished", this.GetId());
+    // fmt.Println("Finished", this.GetId());
     atomicNeuron.DoneWaitGroup();
   }
 };

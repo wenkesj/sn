@@ -1,29 +1,27 @@
 package sn;
 
 import (
-  "fmt";
-  "time";
   "sync";
 );
 
 type AtomicNeuron struct {
   simulationWaitGroup *sync.WaitGroup;
+  innerWaitGroup *sync.WaitGroup;
   mutexSignal *sync.Mutex;
-  innerSignal *sync.WaitGroup;
   numberOfOtherNeurons int;
 };
 
 func NewAtomicNeuron(
   simulationWaitGroup *sync.WaitGroup,
+  innerWaitGroup *sync.WaitGroup,
   mutexSignal *sync.Mutex,
-  innerSignal *sync.WaitGroup,
   numberOfOtherNeurons int,
 ) *AtomicNeuron {
 
   return &AtomicNeuron{
     simulationWaitGroup: simulationWaitGroup,
+    innerWaitGroup: innerWaitGroup,
     mutexSignal: mutexSignal,
-    innerSignal: innerSignal,
     numberOfOtherNeurons: numberOfOtherNeurons,
   };
 };
@@ -44,14 +42,8 @@ func (this *AtomicNeuron) OuterUnlock() {
   this.mutexSignal.Unlock();
 };
 
-func (this *AtomicNeuron) Wait(neuron *SpikingNeuron) {
-  // Wait for the other one to increment the counter first so this neuron doesn't go through.
-  this.innerSignal.Done();
-  time.Sleep(time.Millisecond);
-  this.OuterUnlock();
-  fmt.Println(neuron.GetId(),"waiting for other neurons...");
-  this.innerSignal.Wait();
-  fmt.Println(neuron.GetId(),"is no longer waiting!");
+func (this *AtomicNeuron) GetInnerWaitGroup() *sync.WaitGroup {
+  return this.innerWaitGroup;
 };
 
 func (this *AtomicNeuron) FinishWaitGroup() {
@@ -60,8 +52,4 @@ func (this *AtomicNeuron) FinishWaitGroup() {
 
 func (this *AtomicNeuron) DoneWaitGroup() {
   this.simulationWaitGroup.Done();
-};
-
-func (this *AtomicNeuron) GetInnerWaitGroup() *sync.WaitGroup {
-  return this.innerSignal;
 };

@@ -2,7 +2,7 @@ package sn;
 
 import (
   "time";
-  "fmt";
+  // "fmt";
   "sync";
 );
 
@@ -45,7 +45,7 @@ func (this *Network) Simulate(simulation *Simulation) {
         if !connection.IsWriteable() {
           // Sum the connections to the neuron.
           inputSum += connection.GetOutput();
-          fmt.Println(this.GetId(),"connection recieved with value of", inputSum);
+          // fmt.Println(this.GetId(),"connection recieved with value of", inputSum);
         }
       }
       return inputSum;
@@ -68,7 +68,7 @@ func (this *Network) Simulate(simulation *Simulation) {
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialSuccess);
-          fmt.Println("Fire: ",this.GetId(),", connection sent",connection.GetOutput());
+          // fmt.Println("Fire: ",this.GetId(),", connection sent",connection.GetOutput());
         }
       }
 
@@ -87,7 +87,7 @@ func (this *Network) Simulate(simulation *Simulation) {
       for _, connection := range this.GetConnections() {
         if connection.IsWriteable() {
           connection.SetOutput(defaultOutputMembranePotentialFail);
-          fmt.Println("Fail: ",this.GetId(),", connection sent",connection.GetOutput());
+          // fmt.Println("Fail: ",this.GetId(),", connection sent",connection.GetOutput());
         }
       }
       return true;
@@ -96,9 +96,9 @@ func (this *Network) Simulate(simulation *Simulation) {
 
   // Create an atomic neuron.
   var simulationWaitGroup sync.WaitGroup;
-  var innerSignal sync.WaitGroup;
+  var innerWaitGroup sync.WaitGroup;
   mutexSignal := new(sync.Mutex);
-  atomicNeuron := NewAtomicNeuron(&simulationWaitGroup, mutexSignal, &innerSignal, len(this.neurons));
+  atomicNeuron := NewAtomicNeuron(&simulationWaitGroup, &innerWaitGroup, mutexSignal, len(this.neurons));
 
   // The first neuron starts the simulation ahead of all the others.
   // It grabs the outer lock, blocking all other neurons.
@@ -117,5 +117,5 @@ func (this *Network) Simulate(simulation *Simulation) {
 
   // Wait for the simulation to complete.
   atomicNeuron.FinishWaitGroup();
-  fmt.Println("Finally Finished...");
+  // fmt.Println("Finally Finished...");
 };
