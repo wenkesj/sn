@@ -7,9 +7,9 @@ go get -u github.com/wenkesj/sn
 
 # Usage #
 This package includes baseline simulation tools for creating and simulating [Neural Networks](https://en.wikipedia.org/wiki/Artificial_neural_network).
-Currently, this package only has capabilities for simulating the Izhikevich Phasic Spiking Neuron model. Feel free to contribute!
+Currently, this package only has capabilities for simulating the **Izhikevich Phasic Spiking Neuron** model. Feel free to contribute!
 
-For real examples, look at the [test directory](https://github.com/wenkesj/phasic-spiking-neuron/tree/master/tests).
+For real examples, look at the [test directory](https://github.com/wenkesj/sn/tree/master/tests).
 
 # Testing and Plotting #
 ```sh
