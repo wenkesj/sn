@@ -1,4 +1,4 @@
-package sn;
+package sim;
 
 type Simulation struct {
   steps float64;

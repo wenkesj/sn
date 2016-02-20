@@ -1,15 +1,9 @@
-# Phasic Spiking Neuron #
-Model and Simulation of the Phasic Spiking Neuron.
+# SN #
+Model and Simulation of Spiking Neuron(s).
 
 ```sh
 go get -u github.com/wenkesj/sn
 ```
-
-# Disclaimer #
-This model has current issues:
-+ Neurons only support one way connections.
-+ Trying to find the perfect timing functions to make the simulations seem truly real time.
-+ As the number of connections and neurons increase, more issues with `WaitGroup` and `connections` arise.
 
 # Usage #
 This package includes baseline simulation tools for creating and simulating [Neural Networks](https://en.wikipedia.org/wiki/Artificial_neural_network).

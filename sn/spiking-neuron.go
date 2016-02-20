@@ -3,18 +3,79 @@ package sn;
 import (
   // "fmt";
   "time";
+  "strconv";
+  "github.com/wenkesj/sn/sim";
+  "github.com/wenkesj/sn/vars";
+  "github.com/wenkesj/sn/group";
   "github.com/garyburd/redigo/redis";
 );
-
-// Simulation constants.
-var defaultV = float64(-64);
-var constantV1 = float64(0.04);
-var constantV2 = float64(5);
-var constantV3 = float64(140);
 
 type DecisionFunction func(float64, int, *SpikingNeuron) bool;
 type FloatDecisionFunction func(int, float64, float64, *SpikingNeuron) bool;
 type ReturnFloatFunction func(int, float64, float64, *SpikingNeuron) float64;
+
+type Connection struct {
+  weight float64;
+  to *SpikingNeuron;
+  from *SpikingNeuron;
+  writeable bool;
+};
+
+func NewConnection(to *SpikingNeuron, from *SpikingNeuron, weight float64, writeable bool) *Connection {
+  return &Connection{
+    weight: weight,
+    to: to,
+    from: from,
+    writeable: writeable,
+  };
+};
+
+func (this *Connection) GetOutput() float64 {
+  // Atomically load the output of the connection.
+  // fmt.Println("GET: " + strconv.FormatInt(this.GetFrom().GetId(), 10) + ".to." + strconv.FormatInt(this.GetTo().GetId(), 10));
+  output, err := this.GetFrom().GetStore().Do("GET", strconv.FormatInt(this.GetFrom().GetId(), 10) + "." + strconv.FormatInt(this.GetTo().GetId(), 10));
+  if err != nil {
+    panic(err);
+  }
+  if output == nil {
+    // fmt.Println("Output is nil");
+  }
+  outputFloatValue, err := strconv.ParseFloat(string(output.([]uint8)), 64);
+  if err != nil {
+    panic(err);
+  }
+  return outputFloatValue;
+};
+
+func (this *Connection) SetOutput(output float64) {
+  // Atomically store the output of the connection.
+  // fmt.Println("SET: " + strconv.FormatInt(this.GetTo().GetId(), 10) + ".to." + strconv.FormatInt(this.GetFrom().GetId(), 10));
+  this.GetFrom().GetStore().Do("SET", strconv.FormatInt(this.GetTo().GetId(), 10) + "." + strconv.FormatInt(this.GetFrom().GetId(), 10), output * this.GetWeight());
+};
+
+func (this *Connection) GetTo() *SpikingNeuron {
+  return this.to;
+};
+
+func (this *Connection) GetFrom() *SpikingNeuron {
+  return this.from;
+};
+
+func (this *Connection) GetWeight() float64 {
+  return this.weight;
+};
+
+func (this *Connection) IsWriteable() bool {
+  return this.writeable;
+};
+
+func (this *Connection) SetWriteabel(writeable bool) {
+  this.writeable = writeable;
+};
+
+func (this *Connection) GetWriteabel() bool {
+  return this.writeable;
+};
 
 type SpikingNeuron struct {
   a float64;
@@ -45,8 +106,8 @@ func NewSpikingNeuron(a, b, c, d float64, id int64, redisConnection redis.Conn) 
     b: b,
     c: c,
     d: d,
-    V: defaultV,
-    u: b * defaultV,
+    V: vars.GetDefaultV(),
+    u: b * vars.GetDefaultV(),
     input: 0,
     outputs: nil,
     spikes: 0,
@@ -68,8 +129,8 @@ func (this *SpikingNeuron) ResetParameters(a, b, c, d float64) {
   this.b = b;
   this.c = c;
   this.d = d;
-  this.V = defaultV;
-  this.u = b * defaultV;
+  this.V = vars.GetDefaultV();
+  this.u = b * vars.GetDefaultV();
   this.outputs = nil;
   this.input = 0;
   this.spikes = 0;
@@ -235,17 +296,17 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
   }
 };
 
-func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64, uu []float64, atomicNeuron *AtomicNeuron) {
+func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64, uu []float64, neuronManager *group.NeuronManager) {
   // Lock...
-  if atomicNeuron != nil {
+  if neuronManager != nil {
       // Increment to number of neurons...
     // fmt.Println("Neuron", this.GetId(), "incremented the wait counter...");
     time.Sleep(time.Millisecond);
-    atomicNeuron.GetInnerWaitGroup().Add(1);
-    defer atomicNeuron.GetInnerWaitGroup().Done();
+    neuronManager.GetInnerWaitGroup().Add(1);
+    defer neuronManager.GetInnerWaitGroup().Done();
     // fmt.Println("Neuron", this.GetId(), "grabbed the lock...");
     time.Sleep(time.Millisecond);
-    atomicNeuron.OuterLock();
+    neuronManager.OuterLock();
   }
 
   // Get all the outputs from each connection.
@@ -255,7 +316,7 @@ func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64
     I = this.GetInputFail()(i, t, T1, this);
   }
 
-  this.SetV(this.GetV() + tau * (constantV1 * (this.GetV() * this.GetV()) + constantV2 * this.GetV() + constantV3 - this.GetU() + I));
+  this.SetV(this.GetV() + tau * (vars.GetConstantV1() * (this.GetV() * this.GetV()) + vars.GetConstantV2() * this.GetV() + vars.GetConstantV3() - this.GetU() + I));
   this.SetU(this.GetU() + tau * this.GetA() * (this.GetB() * this.GetV() - this.GetU()));
 
   if this.GetPredicate()(t, i, this) {
@@ -271,7 +332,7 @@ func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64
   uu[i] = this.GetU();
 }
 
-func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *AtomicNeuron) {
+func (this *SpikingNeuron) Simulate(simulation *sim.Simulation, neuronManager *group.NeuronManager) {
   I := float64(0);
 
   steps := simulation.GetSteps();
@@ -286,15 +347,15 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
   for t, i := start, 0; t < steps; t, i = t + tau, i + 1 {
     timeSeries[i] = t;
-    this.ScopedSimulation(I, i, t, T1, tau, uu, atomicNeuron);
+    this.ScopedSimulation(I, i, t, T1, tau, uu, neuronManager);
 
-    if atomicNeuron != nil {
+    if neuronManager != nil {
       // fmt.Println("Neuron", this.GetId(), "released the lock");
       time.Sleep(time.Millisecond);
-      atomicNeuron.OuterUnlock();
+      neuronManager.OuterUnlock();
       // fmt.Println("Neuron", this.GetId(), "is waiting...");
       time.Sleep(time.Millisecond);
-      atomicNeuron.GetInnerWaitGroup().Wait();
+      neuronManager.GetInnerWaitGroup().Wait();
       time.Sleep(time.Millisecond * 2);
       // fmt.Println("Neuron", this.GetId(), "is finished at time", t);
     }
@@ -302,8 +363,8 @@ func (this *SpikingNeuron) Simulate(simulation *Simulation, atomicNeuron *Atomic
 
   simulation.SetTimeSeries(timeSeries);
 
-  if atomicNeuron != nil {
+  if neuronManager != nil {
     // fmt.Println("Finished", this.GetId());
-    atomicNeuron.DoneWaitGroup();
+    neuronManager.DoneWaitGroup();
   }
 };

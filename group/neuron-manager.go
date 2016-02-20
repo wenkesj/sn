@@ -1,24 +1,24 @@
-package sn;
+package group;
 
 import (
   "sync";
 );
 
-type AtomicNeuron struct {
+type NeuronManager struct {
   simulationWaitGroup *sync.WaitGroup;
   innerWaitGroup *sync.WaitGroup;
   mutexSignal *sync.Mutex;
   numberOfOtherNeurons int;
 };
 
-func NewAtomicNeuron(
+func NewNeuronManager(
   simulationWaitGroup *sync.WaitGroup,
   innerWaitGroup *sync.WaitGroup,
   mutexSignal *sync.Mutex,
   numberOfOtherNeurons int,
-) *AtomicNeuron {
+) *NeuronManager {
 
-  return &AtomicNeuron{
+  return &NeuronManager{
     simulationWaitGroup: simulationWaitGroup,
     innerWaitGroup: innerWaitGroup,
     mutexSignal: mutexSignal,
@@ -26,30 +26,30 @@ func NewAtomicNeuron(
   };
 };
 
-func (this *AtomicNeuron) GetNumber() int {
+func (this *NeuronManager) GetNumber() int {
   return this.numberOfOtherNeurons;
 };
 
-func (this *AtomicNeuron) AddWaitGroup(num int) {
+func (this *NeuronManager) AddWaitGroup(num int) {
   this.simulationWaitGroup.Add(num);
 };
 
-func (this *AtomicNeuron) OuterLock() {
+func (this *NeuronManager) OuterLock() {
   this.mutexSignal.Lock();
 };
 
-func (this *AtomicNeuron) OuterUnlock() {
+func (this *NeuronManager) OuterUnlock() {
   this.mutexSignal.Unlock();
 };
 
-func (this *AtomicNeuron) GetInnerWaitGroup() *sync.WaitGroup {
+func (this *NeuronManager) GetInnerWaitGroup() *sync.WaitGroup {
   return this.innerWaitGroup;
 };
 
-func (this *AtomicNeuron) FinishWaitGroup() {
+func (this *NeuronManager) FinishWaitGroup() {
   this.simulationWaitGroup.Wait();
 };
 
-func (this *AtomicNeuron) DoneWaitGroup() {
+func (this *NeuronManager) DoneWaitGroup() {
   this.simulationWaitGroup.Done();
 };

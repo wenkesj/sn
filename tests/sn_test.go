@@ -3,12 +3,17 @@ package tests;
 import (
   "testing";
   "strconv";
-  "github.com/garyburd/redigo/redis";
+  // Plot utils
   "github.com/gonum/plot";
   "github.com/gonum/plot/plotter";
   "github.com/gonum/plot/plotutil";
   "github.com/gonum/plot/vg";
+  // SN
   "github.com/wenkesj/sn/sn";
+  "github.com/wenkesj/sn/sim";
+  "github.com/wenkesj/sn/net";
+  // Deps
+  "github.com/garyburd/redigo/redis";
 );
 
 // Simulation parameters.
@@ -79,7 +84,7 @@ func IndexOf(list []float64, targetValue float64) int {
 };
 
 func TestSingleSpikingNeuronSimulation(t *testing.T) {
-  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
+  simulation := sim.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
   output := make([]float64, len(simulation.GetTimeSeries()));
 
   spikingNeuron := sn.NewSpikingNeuron(defaultA, defaultB, defaultC, defaultD, 0, nil);
@@ -178,9 +183,9 @@ func TestSingleConnectionSpikingNeuronNetwork(t *testing.T) {
   externalSource.CreateConnection(network[0], 1.0, true, 0);
 
   // Create a default simulation.
-  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
+  simulation := sim.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
-  var testNetwork *sn.Network;
+  var testNetwork *net.Network;
 
   for input := float64(0); input < maxInput + lazyIncrement; input = input + lazyIncrement {
     if input == 0 {
@@ -194,7 +199,7 @@ func TestSingleConnectionSpikingNeuronNetwork(t *testing.T) {
     }
 
     // Create a new network simulation of connections feeding from/to neurons.
-    testNetwork = sn.NewNetwork(network);
+    testNetwork = net.NewNetwork(network);
     testNetwork.Simulate(simulation);
 
     for plotIndex, neuron := range testNetwork.GetNeurons() {
@@ -272,9 +277,9 @@ func TestMultipleConnectionSpikingNeuronNetwork(t *testing.T) {
   }
 
   // Create a default simulation.
-  simulation := sn.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
+  simulation := sim.NewSimulation(defaultSteps, defaultTau, defaultStart, defaultStepRise);
 
-  var testNetwork *sn.Network;
+  var testNetwork *net.Network;
 
   for input := float64(0); input < maxInput + lazyIncrement; input = input + lazyIncrement {
     if input == 0 {
@@ -290,7 +295,7 @@ func TestMultipleConnectionSpikingNeuronNetwork(t *testing.T) {
     }
 
     // Create a new network simulation of connections feeding from/to neurons.
-    testNetwork = sn.NewNetwork(network);
+    testNetwork = net.NewNetwork(network);
     testNetwork.Simulate(simulation);
 
     for plotIndex, neuron := range testNetwork.GetNeurons() {
