@@ -3,11 +3,8 @@ package tests;
 import (
   "testing";
   "strconv";
-  // Plot utils
-  "github.com/gonum/plot";
-  "github.com/gonum/plot/plotter";
-  "github.com/gonum/plot/plotutil";
-  "github.com/gonum/plot/vg";
+  // Plots
+  "github.com/wenkesj/sn/plots";
   // SN
   "github.com/wenkesj/sn/sn";
   "github.com/wenkesj/sn/sim";
@@ -45,34 +42,6 @@ var defaultOutputMembranePotentialSuccess = float64(1.0);
 var defaultOutputMembranePotentialFail = float64(0.0);
 var numberOfSpikingNeurons = 3;
 var numberOfExternalConnections = 3;
-
-func GeneratePlot(x, y []float64, title, xLabel, yLabel, legendLabel, fileName string) {
-  outPlotPoints := make(plotter.XYs, len(x));
-
-  for i, _ := range x {
-    outPlotPoints[i].X = x[i];
-    outPlotPoints[i].Y = y[i];
-  }
-
-  outPlot, err := plot.New();
-  if err != nil {
-    panic(err);
-  }
-
-  outPlot.Title.Text = title;
-  outPlot.X.Label.Text = xLabel;
-  outPlot.Y.Label.Text = yLabel;
-
-  err = plotutil.AddLines(outPlot,
-    legendLabel, outPlotPoints);
-  if err != nil {
-    panic(err);
-  }
-
-  if err := outPlot.Save(6 * vg.Inch, 6 * vg.Inch, fileName); err != nil {
-    panic(err);
-  }
-};
 
 func IndexOf(list []float64, targetValue float64) int {
   for index, value := range list {
@@ -132,7 +101,7 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
       yLabel := "Membrane Potential";
       legendLabel := "Membrane Potential over Time";
       fileName := "plots/spiking-neuron-" + inputString + ".png";
-      GeneratePlot(simulation.GetTimeSeries(), output, title, xLabel, yLabel, legendLabel, fileName);
+      plots.GeneratePlot(simulation.GetTimeSeries(), output, title, xLabel, yLabel, legendLabel, fileName);
     }
 
     spikingNeuron.SetSpikeRate(input, float64(spikingNeuron.GetSpikes()) / defaultMeasureStart);
@@ -151,7 +120,7 @@ func TestSingleSpikingNeuronSimulation(t *testing.T) {
   yLabel := "Spike Rate";
   legendLabel := "Spike Rate as a Function of Input";
   fileName := "plots/spiking-neuron-mean-spike-rate.png";
-  GeneratePlot(inputMeasurements, means, title, xLabel, yLabel, legendLabel, fileName);
+  plots.GeneratePlot(inputMeasurements, means, title, xLabel, yLabel, legendLabel, fileName);
 };
 
 // External Source -> Neuron A -> Neuron B -> Neuron C ... example.
@@ -210,7 +179,7 @@ func TestSingleConnectionSpikingNeuronNetwork(t *testing.T) {
       yLabel := "Membrane Potential";
       legendLabel := "Membrane Potential over Time";
       fileName := "plots/spiking-neuron-" + plotIndexString + "-" + inputString + ".png";
-      GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
+      plots.GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
 
       neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
       neuron.ResetParameters(defaultA, defaultB, defaultC, defaultD);
@@ -241,7 +210,7 @@ func TestSingleConnectionSpikingNeuronNetwork(t *testing.T) {
     yLabel := "Spike Rate";
     legendLabel := "Spike Rate as a Function of Input";
     fileName := "plots/spiking-neuron-network-mean-spike-rate-" + plotIndexString + ".png";
-    GeneratePlot(inputMeasurements, value, title, xLabel, yLabel, legendLabel, fileName);
+    plots.GeneratePlot(inputMeasurements, value, title, xLabel, yLabel, legendLabel, fileName);
     plotIndex++;
   }
 };
@@ -307,7 +276,7 @@ func TestMultipleConnectionSpikingNeuronNetwork(t *testing.T) {
       yLabel := "Membrane Potential";
       legendLabel := "Membrane Potential over Time";
       fileName := "plots/spiking-neuron-" + plotIndexString + "-" + inputString + "-with-" + numberOfConnections + "-connections.png";
-      GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
+      plots.GeneratePlot(simulation.GetTimeSeries(), neuron.GetOutputs(), title, xLabel, yLabel, legendLabel, fileName);
 
       neuron.SetSpikeRate(input, float64(neuron.GetSpikes()) / defaultMeasureStart);
       neuron.ResetParameters(defaultA, defaultB, defaultC, defaultD);

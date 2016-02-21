@@ -9,6 +9,7 @@ deps:
 	go get -u github.com/garyburd/redigo/redis
 
 install:
+	go install github.com/wenkesj/sn/plots
 	go install github.com/wenkesj/sn/sn
 	go install github.com/wenkesj/sn/net
 	go install github.com/wenkesj/sn/group
