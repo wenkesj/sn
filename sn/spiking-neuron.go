@@ -96,11 +96,13 @@ type SpikingNeuron struct {
   spikeRateMap map[float64]float64;
   input float64;
   outputs []float64;
+  spikeMap []float64;
   connections []*Connection;
 };
 
 func NewSpikingNeuron(a, b, c, d float64, id int64, redisConnection redis.Conn) *SpikingNeuron {
   spikeRateMap := make(map[float64]float64);
+  spikeMap := []float64{};
   return &SpikingNeuron{
     a: a,
     b: b,
@@ -113,6 +115,7 @@ func NewSpikingNeuron(a, b, c, d float64, id int64, redisConnection redis.Conn) 
     spikes: 0,
     redisConnection: redisConnection,
     spikeRateMap: spikeRateMap,
+    spikeMap: spikeMap,
     predicate: nil,
     success: nil,
     fail: nil,
@@ -294,6 +297,14 @@ func (this *SpikingNeuron) RemoveConnection(targetNeuron *SpikingNeuron, once in
       break;
     }
   }
+};
+
+func (this *SpikingNeuron) SetTimeSpike(time float64) {
+  this.spikeMap = append(this.spikeMap, time);
+};
+
+func (this *SpikingNeuron) GetTimeSpike() []float64 {
+  return this.spikeMap;
 };
 
 func (this *SpikingNeuron) ScopedSimulation(I float64, i int, t, T1, tau float64, uu []float64, neuronManager *group.NeuronManager) {

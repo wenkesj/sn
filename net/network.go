@@ -24,9 +24,9 @@ func (this *Network) GetNeurons() []*sn.SpikingNeuron {
   return this.neurons;
 };
 
-func (this *Network) Simulate(simulation *sim.Simulation) {
+func (_this *Network) Simulate(simulation *sim.Simulation) {
   // Share the simulation across all neurons.
-  for index, neuron := range this.neurons {
+  for index, neuron := range _this.neurons {
     // Every neuron except the first one.
     if index != 0 {
       neuron.SetInput(0.0);
@@ -73,6 +73,7 @@ func (this *Network) Simulate(simulation *sim.Simulation) {
       // For calculating mean spike rate.
       if timeIndex > vars.GetDefaultMeasureStart() {
         this.SetSpikes(this.GetSpikes() + 1);
+        this.SetTimeSpike(timeIndex);
       }
       return true;
     });
@@ -96,7 +97,7 @@ func (this *Network) Simulate(simulation *sim.Simulation) {
   var simulationWaitGroup sync.WaitGroup;
   var innerWaitGroup sync.WaitGroup;
   mutexSignal := new(sync.Mutex);
-  neuronManager := group.NewNeuronManager(&simulationWaitGroup, &innerWaitGroup, mutexSignal, len(this.neurons));
+  neuronManager := group.NewNeuronManager(&simulationWaitGroup, &innerWaitGroup, mutexSignal, len(_this.neurons));
 
   // The first neuron starts the simulation ahead of all the others.
   // It grabs the outer lock, blocking all other neurons.
@@ -107,7 +108,7 @@ func (this *Network) Simulate(simulation *sim.Simulation) {
   // The neuron then unlocks the next neuron to go through and waits for it to finish.
   // After all the neurons finish, the first neuron goes again first.
   // This then repeats over the time series...
-  for _, neuron := range this.neurons {
+  for _, neuron := range _this.neurons {
     neuronManager.AddWaitGroup(1);
     go neuron.Simulate(simulation, neuronManager);
     time.Sleep(time.Millisecond);
